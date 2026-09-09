@@ -1,10 +1,10 @@
 {
-    "version": "2.1.9",
-    "build": 13,
+    "version": "2.1.10",
+    "build": 14,
     "release_date": "2026-09-09",
-    "release_notes": "Sửa lỗi gõ tên rồi bấm ô số điện thoại thì tên bị xóa: ô nhập dùng AppKit, dữ liệu lưu trên class không bị SwiftUI reset.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.9/ZaloMulti-2.1.9-Universal.dmg",
-    "download_size": 1976758,
+    "release_notes": "Nút Tạo Clone luôn bấm được, đọc thẳng tên từ ô nhập. Bỏ tiêu đề/nút X trùng với cửa sổ.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.10/ZaloMulti-2.1.10-Universal.dmg",
+    "download_size": 1966050,
     "min_os_version": "14.0",
     "mandatory": true
 }

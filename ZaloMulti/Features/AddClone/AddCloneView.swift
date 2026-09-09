@@ -1,19 +1,77 @@
 // AddCloneView.swift
 // ZaloMulti
 //
-// Form thêm clone — dữ liệu nằm trên class (không dùng @State TextField).
-// SwiftUI TextField trên macOS reset chữ khi đổi focus.
+// Form thêm clone trong NSPanel. Ô nhập là NSTextField thật;
+// nút Tạo Clone đọc trực tiếp stringValue, không phụ thuộc SwiftUI Binding.
 
 import SwiftUI
 import AppKit
 
 @MainActor
-final class AddCloneFormModel: ObservableObject {
-    @Published var name = ""
-    @Published var phoneNumber = ""
+final class AddCloneFormModel: NSObject, ObservableObject, NSTextFieldDelegate {
     @Published var isCreating = false
     @Published var createComplete = false
     @Published var errorMessage: String?
+    
+    let nameField = NSTextField(string: "")
+    let phoneField = NSTextField(string: "")
+    
+    var onSubmitPhone: (() -> Void)?
+    
+    var trimmedName: String {
+        nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    var trimmedPhone: String {
+        phoneField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    override init() {
+        super.init()
+        configure(nameField, placeholder: "VD: Business, Shop Online...")
+        configure(phoneField, placeholder: "0901234567")
+        nameField.delegate = self
+        phoneField.delegate = self
+    }
+    
+    private func configure(_ field: NSTextField, placeholder: String) {
+        field.placeholderString = placeholder
+        field.isBordered = true
+        field.isBezeled = true
+        field.bezelStyle = .roundedBezel
+        field.focusRingType = .default
+        field.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        field.isEditable = true
+        field.isSelectable = true
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    }
+    
+    func setFieldsEnabled(_ enabled: Bool) {
+        nameField.isEditable = enabled
+        nameField.isEnabled = enabled
+        phoneField.isEditable = enabled
+        phoneField.isEnabled = enabled
+    }
+    
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            if control === phoneField {
+                onSubmitPhone?()
+                return true
+            }
+            nameField.window?.makeFirstResponder(phoneField)
+            return true
+        }
+        return false
+    }
+}
+
+struct ExistingNSTextField: NSViewRepresentable {
+    let field: NSTextField
+    
+    func makeNSView(context: Context) -> NSTextField { field }
+    func updateNSView(_ nsView: NSTextField, context: Context) {}
 }
 
 struct AddCloneView: View {
@@ -31,22 +89,6 @@ struct AddCloneView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Thêm tài khoản Clone")
-                    .font(.headline)
-                Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .disabled(model.isCreating)
-            }
-            .padding()
-            
-            Divider()
-            
             VStack(alignment: .leading, spacing: 16) {
                 GroupBox("Thông tin tài khoản") {
                     VStack(alignment: .leading, spacing: 14) {
@@ -54,25 +96,16 @@ struct AddCloneView: View {
                             Text("Tên hiển thị")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            MacTextField(
-                                text: $model.name,
-                                placeholder: "VD: Business, Shop Online...",
-                                enabled: !model.isCreating
-                            )
-                            .frame(maxWidth: .infinity, minHeight: 24)
+                            ExistingNSTextField(field: model.nameField)
+                                .frame(maxWidth: .infinity, minHeight: 24)
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Số điện thoại")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            MacTextField(
-                                text: $model.phoneNumber,
-                                placeholder: "0901234567",
-                                enabled: !model.isCreating,
-                                onSubmit: submitIfPossible
-                            )
-                            .frame(maxWidth: .infinity, minHeight: 24)
+                            ExistingNSTextField(field: model.phoneField)
+                                .frame(maxWidth: .infinity, minHeight: 24)
                         }
                         
                         if model.isCreating {
@@ -141,17 +174,16 @@ struct AddCloneView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(model.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isCreating || !store.canAddMore)
-                .keyboardShortcut(.return)
+                .disabled(model.isCreating)
             }
             .padding()
         }
-        .frame(width: 460, height: 350)
-    }
-    
-    private func submitIfPossible() {
-        if !model.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.isCreating && store.canAddMore {
-            createClone()
+        .frame(width: 460, height: 280)
+        .onAppear {
+            model.onSubmitPhone = { createClone() }
+            DispatchQueue.main.async {
+                model.nameField.window?.makeFirstResponder(model.nameField)
+            }
         }
     }
     
@@ -184,16 +216,20 @@ struct AddCloneView: View {
     }
     
     private func createClone() {
+        let cleanName = model.trimmedName
+        guard !cleanName.isEmpty else {
+            model.errorMessage = "Nhập tên hiển thị trước khi tạo clone."
+            return
+        }
         guard store.canAddMore else {
             model.errorMessage = "Đã đạt giới hạn tối đa \(CloneStore.maxClones) tài khoản."
             return
         }
-        let cleanName = model.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanName.isEmpty else { return }
         
-        DiagnosticLogger.info("CREATE", "Form submit name='\(cleanName)'")
+        DiagnosticLogger.info("CREATE", "Form submit name='\(cleanName)' phone='\(model.trimmedPhone)'")
         model.errorMessage = nil
         model.isCreating = true
+        model.setFieldsEnabled(false)
         engine.progressMessage = "Đang chuẩn bị..."
         
         Task {
@@ -202,7 +238,7 @@ struct AddCloneView: View {
                 let clone = try await store.engine.createClone(
                     index: nextIndex,
                     name: cleanName,
-                    phone: model.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+                    phone: model.trimmedPhone
                 )
                 await MainActor.run {
                     store.clones.append(clone)
@@ -217,6 +253,7 @@ struct AddCloneView: View {
             } catch {
                 await MainActor.run {
                     model.isCreating = false
+                    model.setFieldsEnabled(true)
                     model.errorMessage = error.localizedDescription
                 }
                 DiagnosticLogger.error("CREATE", "Lỗi tạo clone: \(error.localizedDescription)")
@@ -225,67 +262,6 @@ struct AddCloneView: View {
     }
 }
 
-// MARK: - AppKit text field (không bị SwiftUI reset khi đổi focus)
-
-struct MacTextField: NSViewRepresentable {
-    @Binding var text: String
-    var placeholder: String
-    var enabled: Bool = true
-    var onSubmit: (() -> Void)? = nil
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-    
-    func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField(string: text)
-        field.placeholderString = placeholder
-        field.delegate = context.coordinator
-        field.isBordered = true
-        field.isBezeled = true
-        field.bezelStyle = .roundedBezel
-        field.focusRingType = .default
-        field.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-        field.isEditable = enabled
-        field.isSelectable = true
-        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        context.coordinator.onChange = { text = $0 }
-        context.coordinator.onSubmit = onSubmit
-        return field
-    }
-    
-    func updateNSView(_ nsView: NSTextField, context: Context) {
-        context.coordinator.onChange = { text = $0 }
-        context.coordinator.onSubmit = onSubmit
-        if nsView.currentEditor() == nil, nsView.stringValue != text {
-            nsView.stringValue = text
-        }
-        nsView.isEditable = enabled
-        nsView.isEnabled = enabled
-        nsView.placeholderString = placeholder
-    }
-    
-    final class Coordinator: NSObject, NSTextFieldDelegate {
-        var onChange: (String) -> Void = { _ in }
-        var onSubmit: (() -> Void)?
-        
-        func controlTextDidChange(_ obj: Notification) {
-            guard let field = obj.object as? NSTextField else { return }
-            onChange(field.stringValue)
-        }
-        
-        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                onSubmit?()
-                return true
-            }
-            return false
-        }
-    }
-}
-
-/// Cửa sổ AppKit — overlay SwiftUI trên macOS 14 không vẽ form.
 @MainActor
 final class AddCloneWindow: NSObject, NSWindowDelegate {
     static let shared = AddCloneWindow()
@@ -312,7 +288,7 @@ final class AddCloneWindow: NSObject, NSWindowDelegate {
         })
         
         let hosting = NSHostingView(rootView: root)
-        let size = NSSize(width: 480, height: 380)
+        let size = NSSize(width: 480, height: 300)
         hosting.frame = NSRect(origin: .zero, size: size)
         
         let panel = NSPanel(
