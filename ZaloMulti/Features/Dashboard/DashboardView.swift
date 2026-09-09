@@ -65,8 +65,8 @@ struct DashboardView: View {
                     MaxClonesReachedView()
                 }
             }
-            .id(store.clones.map(\.id))
-            .animation(.easeInOut(duration: 0.2), value: store.clones.map(\.id))
+            .id(store.listRevision)
+            .animation(.easeInOut(duration: 0.2), value: store.listRevision)
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }

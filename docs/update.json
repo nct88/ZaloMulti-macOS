@@ -1,10 +1,10 @@
 {
-    "version": "2.1.13",
-    "build": 17,
+    "version": "2.1.14",
+    "build": 18,
     "release_date": "2026-09-09",
-    "release_notes": "Sửa lỗi xóa clone phải tắt app mới mất: UI refresh ngay sau khi xác nhận xóa.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.13/ZaloMulti-2.1.13-Universal.dmg",
-    "download_size": 1929562,
+    "release_notes": "Sửa lỗi tạo clone xong không hiện card: đóng form rồi mới cập nhật list, ép dashboard refresh.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.14/ZaloMulti-2.1.14-Universal.dmg",
+    "download_size": 1930197,
     "min_os_version": "14.0",
     "mandatory": true
 }

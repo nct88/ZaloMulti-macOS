@@ -21,6 +21,7 @@ final class CloneStore: ObservableObject {
     
     // MARK: - Published Properties
     @Published var clones: [CloneAccount] = []
+    @Published var listRevision: UInt64 = 0
     @Published var showAddCloneSheet = false
     @Published var errorMessage: String?
     @Published var showError = false
@@ -88,10 +89,7 @@ final class CloneStore: ObservableObject {
                     name: name,
                     phone: phone
                 )
-                objectWillChange.send()
-                clones = clones + [clone]
-                saveClones()
-                DiagnosticLogger.success("STORE", "Clone '\(name)' đã thêm (total=\(clones.count))")
+                addCreatedClone(clone)
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
@@ -101,10 +99,14 @@ final class CloneStore: ObservableObject {
     }
     
     func addCreatedClone(_ clone: CloneAccount) {
-        objectWillChange.send()
-        clones = clones + [clone]
+        var next = clones
+        if !next.contains(where: { $0.id == clone.id }) {
+            next.append(clone)
+        }
+        clones = next
+        listRevision += 1
         saveClones()
-        DiagnosticLogger.success("STORE", "Clone '\(clone.name)' đã thêm (total=\(clones.count))")
+        DiagnosticLogger.success("STORE", "Clone '\(clone.name)' đã thêm (total=\(clones.count) rev=\(listRevision))")
     }
     
     /// Cập nhật thông tin clone
@@ -125,10 +127,10 @@ final class CloneStore: ObservableObject {
         
         do {
             try engine.deleteClone(clone)
-            objectWillChange.send()
             clones = clones.filter { $0.id != clone.id }
+            listRevision += 1
             saveClones()
-            DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách — còn \(clones.count)")
+            DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách — còn \(clones.count) rev=\(listRevision)")
         } catch {
             errorMessage = "Lỗi xoá files: \(error.localizedDescription)"
             showError = true

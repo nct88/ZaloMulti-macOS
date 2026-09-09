@@ -14,7 +14,7 @@ struct ContentView: View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
                 NotificationBarView()
-                DashboardView(onAddClone: { AddCloneWindow.shared.present() })
+                DashboardView(store: cloneStore, onAddClone: { AddCloneWindow.shared.present() })
             }
             .frame(maxWidth: .infinity)
             

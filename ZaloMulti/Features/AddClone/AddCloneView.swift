@@ -221,11 +221,12 @@ final class AddCloneWindow: NSObject, NSWindowDelegate, NSTextFieldDelegate {
                 let nextIndex = (store.clones.map(\.cloneIndex).max() ?? 0) + 1
                 let clone = try await store.engine.createClone(index: nextIndex, name: name, phone: phone)
                 ticker.cancel()
-                store.addCreatedClone(clone)
                 self.statusLabel?.stringValue = "Hoàn thành!"
                 self.spinner?.stopAnimation(nil)
-                try? await Task.sleep(for: .seconds(1.2))
+                try? await Task.sleep(for: .milliseconds(500))
                 self.close()
+                // Cập nhật list SAU khi đóng panel AppKit — nếu thêm lúc panel đang key, SwiftUI không vẽ card.
+                CloneStore.shared.addCreatedClone(clone)
             } catch {
                 ticker.cancel()
                 DiagnosticLogger.error("CREATE", "Lỗi tạo clone: \(error.localizedDescription)")
