@@ -217,21 +217,19 @@ final class ZaloCloneEngine: ObservableObject {
         }
         
         let plistPath = "\(appPath)/Contents/Info.plist"
-        guard let dict = NSMutableDictionary(contentsOfFile: plistPath) else {
+        guard FileManager.default.fileExists(atPath: plistPath) else {
             throw CloneError.plistNotFound
         }
         
-        var env = dict["LSEnvironment"] as? [String: String] ?? [:]
-        env["HOME"] = dataPath
-        env["TMPDIR"] = "\(dataPath)/tmp"
-        if env["MallocNanoZone"] == nil {
-            env["MallocNanoZone"] = "0"
+        _ = try? runPlistBuddy(plistPath: plistPath, command: "Add :LSEnvironment dict")
+        func setEnv(_ key: String, _ value: String) throws {
+            if (try? runPlistBuddy(plistPath: plistPath, command: "Set :LSEnvironment:\(key) \(value)")) == nil {
+                try runPlistBuddy(plistPath: plistPath, command: "Add :LSEnvironment:\(key) string \(value)")
+            }
         }
-        dict["LSEnvironment"] = env
-        
-        guard dict.write(toFile: plistPath, atomically: true) else {
-            throw CloneError.plistWriteFailed
-        }
+        try setEnv("HOME", dataPath)
+        try setEnv("TMPDIR", "\(dataPath)/tmp")
+        _ = try? setEnv("MallocNanoZone", "0")
         DiagnosticLogger.info("CREATE", "LSEnvironment HOME=\(dataPath)")
     }
     
@@ -434,13 +432,15 @@ final class ZaloCloneEngine: ObservableObject {
         entitlementsPath: String? = nil,
         throwOnError: Bool = true
     ) throws {
-        func invoke() throws -> (status: Int32, stderr: String) {
+        func invoke(runtime: Bool, deep: Bool) throws -> (status: Int32, stderr: String) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-            var args = ["--force", "--sign", "-", "--options", "runtime"]
+            var args = ["--force", "--sign", "-"]
+            if runtime { args.append(contentsOf: ["--options", "runtime"]) }
             if let entPath = entitlementsPath {
                 args.append(contentsOf: ["--entitlements", entPath])
             }
+            if deep { args.append("--deep") }
             args.append(path)
             process.arguments = args
             let pipe = Pipe()
@@ -453,15 +453,29 @@ final class ZaloCloneEngine: ObservableObject {
             return (process.terminationStatus, stderr)
         }
         
-        var result = try invoke()
-        
-        if result.status != 0, result.stderr.lowercased().contains("detritus") {
+        func scrubXattrs() {
             let xattr = Process()
             xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
             xattr.arguments = ["-cr", path]
             try? xattr.run()
             xattr.waitUntilExit()
-            result = try invoke()
+        }
+        
+        var result = try invoke(runtime: true, deep: false)
+        
+        if result.status != 0, result.stderr.lowercased().contains("detritus") {
+            scrubXattrs()
+            result = try invoke(runtime: true, deep: false)
+        }
+        
+        let isBundle = path.hasSuffix(".app") || path.hasSuffix(".framework")
+        if result.status != 0, isBundle {
+            result = try invoke(runtime: true, deep: true)
+        }
+        
+        // Intel: đường ký cũ (--deep, không runtime) từng chạy ổn. ARM giữ runtime.
+        if result.status != 0, isBundle, !HostEnvironment.hasArm64Hardware {
+            result = try invoke(runtime: false, deep: true)
         }
         
         if result.status != 0 && throwOnError {

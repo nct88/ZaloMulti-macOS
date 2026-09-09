@@ -1,10 +1,10 @@
 {
-    "version": "2.1.5",
-    "build": 9,
+    "version": "2.1.6",
+    "build": 10,
     "release_date": "2026-09-09",
-    "release_notes": "Sửa lỗi tạo tài khoản trên Mac chip M: giữ binary Mach-O (không thay bằng script bash), ký Hardened Runtime cho Electron, ô nhập liệu dùng AppKit để không mất focus. Máy chip M phải dùng bản Universal hoặc AppleSilicon, không dùng bản Intel.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.5/ZaloMulti-2.1.5-Universal.dmg",
-    "download_size": 1970105,
+    "release_notes": "Sửa lỗi 2.1.5 không tạo được clone trên Intel: khôi phục ô nhập SwiftUI (ô AppKit bị co chiều rộng nên không gõ được, nút Tạo Clone bị khóa). Giữ sửa ký mã cho chip M.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.6/ZaloMulti-2.1.6-Universal.dmg",
+    "download_size": 1964190,
     "min_os_version": "14.0",
     "mandatory": true
 }

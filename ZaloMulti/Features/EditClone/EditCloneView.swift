@@ -52,16 +52,18 @@ struct EditCloneView: View {
                                 Text("Tên hiển thị")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                ReliableTextField(placeholder: "VD: Business, Shop Online...", text: $name)
-                                    .frame(height: 22)
+                                TextField("VD: Business, Shop Online...", text: $name)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .name)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Số điện thoại")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                ReliableTextField(placeholder: "0901234567", text: $phoneNumber)
-                                    .frame(height: 22)
+                                TextField("0901234567", text: $phoneNumber)
+                                    .textFieldStyle(.roundedBorder)
+                                    .focused($focusedField, equals: .phone)
                             }
                         }
                         .padding(8)
