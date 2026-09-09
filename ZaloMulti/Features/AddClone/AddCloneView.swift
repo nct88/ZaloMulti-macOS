@@ -221,8 +221,7 @@ final class AddCloneWindow: NSObject, NSWindowDelegate, NSTextFieldDelegate {
                 let nextIndex = (store.clones.map(\.cloneIndex).max() ?? 0) + 1
                 let clone = try await store.engine.createClone(index: nextIndex, name: name, phone: phone)
                 ticker.cancel()
-                store.clones.append(clone)
-                store.saveClones()
+                store.addCreatedClone(clone)
                 self.statusLabel?.stringValue = "Hoàn thành!"
                 self.spinner?.stopAnimation(nil)
                 try? await Task.sleep(for: .seconds(1.2))

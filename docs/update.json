@@ -1,10 +1,10 @@
 {
-    "version": "2.1.12",
-    "build": 16,
+    "version": "2.1.13",
+    "build": 17,
     "release_date": "2026-09-09",
-    "release_notes": "Bản đóng gói: tạo clone không đơ UI, không tạo trùng khi bấm 2 lần, xóa clone kill process rồi xóa file.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.12/ZaloMulti-2.1.12-Universal.dmg",
-    "download_size": 1921911,
+    "release_notes": "Sửa lỗi xóa clone phải tắt app mới mất: UI refresh ngay sau khi xác nhận xóa.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.13/ZaloMulti-2.1.13-Universal.dmg",
+    "download_size": 1929562,
     "min_os_version": "14.0",
     "mandatory": true
 }

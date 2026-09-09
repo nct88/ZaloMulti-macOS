@@ -200,8 +200,21 @@ struct CloneCardView: View {
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Xoá")
         alert.addButton(withTitle: "Huỷ")
-        if alert.runModal() == .alertFirstButtonReturn {
-            store.deleteClone(clone)
+        
+        let toDelete = clone
+        let finish: (NSApplication.ModalResponse) -> Void = { response in
+            guard response == .alertFirstButtonReturn else { return }
+            DispatchQueue.main.async {
+                CloneStore.shared.deleteClone(toDelete)
+            }
+        }
+        
+        if let win = NSApp.keyWindow ?? NSApp.mainWindow {
+            alert.beginSheetModal(for: win, completionHandler: finish)
+        } else if alert.runModal() == .alertFirstButtonReturn {
+            DispatchQueue.main.async {
+                CloneStore.shared.deleteClone(toDelete)
+            }
         }
     }
     

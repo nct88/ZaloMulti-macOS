@@ -263,6 +263,27 @@ final class DataModelTests: XCTestCase {
     }
     
     @MainActor
+    func testDeleteCloneUpdatesArrayImmediately() {
+        let store = CloneStore.shared
+        let backup = store.clones
+        let fake = CloneAccount(
+            name: "DelUI",
+            cloneIndex: 95,
+            bundleID: "com.vng.zalo.clone95",
+            appPath: "/tmp/zalomulti-no-app-95.app",
+            dataPath: "/tmp/zalomulti-no-data-95",
+            avatarColor: "#111111"
+        )
+        store.addCreatedClone(fake)
+        XCTAssertTrue(store.clones.contains { $0.id == fake.id })
+        store.deleteClone(fake)
+        XCTAssertFalse(store.clones.contains { $0.id == fake.id }, "List phải mất clone ngay sau deleteClone")
+        store.objectWillChange.send()
+        store.clones = backup
+        store.saveClones()
+    }
+    
+    @MainActor
     func testCreateCloneProducesSignedMachOApp() async throws {
         let source = "/Applications/Zalo.app"
         try XCTSkipUnless(FileManager.default.fileExists(atPath: source), "Cần Zalo Desktop tại /Applications/Zalo.app")

@@ -59,13 +59,14 @@ struct DashboardView: View {
                     CloneCardView(clone: clone)
                 }
                 
-                // Nút thêm clone — chỉ hiện khi chưa đạt giới hạn
                 if store.canAddMore {
                     AddCloneCardView(action: onAddClone)
                 } else {
                     MaxClonesReachedView()
                 }
             }
+            .id(store.clones.map(\.id))
+            .animation(.easeInOut(duration: 0.2), value: store.clones.map(\.id))
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }

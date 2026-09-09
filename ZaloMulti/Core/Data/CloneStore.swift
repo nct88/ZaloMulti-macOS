@@ -88,7 +88,8 @@ final class CloneStore: ObservableObject {
                     name: name,
                     phone: phone
                 )
-                clones.append(clone)
+                objectWillChange.send()
+                clones = clones + [clone]
                 saveClones()
                 DiagnosticLogger.success("STORE", "Clone '\(name)' đã thêm (total=\(clones.count))")
             } catch {
@@ -97,6 +98,13 @@ final class CloneStore: ObservableObject {
                 DiagnosticLogger.error("STORE", "addClone thất bại", error: error)
             }
         }
+    }
+    
+    func addCreatedClone(_ clone: CloneAccount) {
+        objectWillChange.send()
+        clones = clones + [clone]
+        saveClones()
+        DiagnosticLogger.success("STORE", "Clone '\(clone.name)' đã thêm (total=\(clones.count))")
     }
     
     /// Cập nhật thông tin clone
@@ -117,9 +125,10 @@ final class CloneStore: ObservableObject {
         
         do {
             try engine.deleteClone(clone)
-            clones.removeAll { $0.id == clone.id }
+            objectWillChange.send()
+            clones = clones.filter { $0.id != clone.id }
             saveClones()
-            DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách")
+            DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách — còn \(clones.count)")
         } catch {
             errorMessage = "Lỗi xoá files: \(error.localizedDescription)"
             showError = true
