@@ -1,49 +1,52 @@
 // AddCloneView.swift
 // ZaloMulti
 //
-// Modal thêm tài khoản clone mới — với progress bar inline.
-// Rebuild v2.1 — Custom In-Window Modal chống mất dữ liệu khi re-render trên macOS.
+// Form thêm clone — dữ liệu nằm trên class (không dùng @State TextField).
+// SwiftUI TextField trên macOS reset chữ khi đổi focus.
 
 import SwiftUI
 import AppKit
 
+@MainActor
+final class AddCloneFormModel: ObservableObject {
+    @Published var name = ""
+    @Published var phoneNumber = ""
+    @Published var isCreating = false
+    @Published var createComplete = false
+    @Published var errorMessage: String?
+}
+
 struct AddCloneView: View {
-    @Binding var isPresented: Bool
-    @ObservedObject var store: CloneStore = CloneStore.shared
+    @ObservedObject var model: AddCloneFormModel
+    @ObservedObject var store: CloneStore
+    @ObservedObject var engine: ZaloCloneEngine
+    var onClose: () -> Void
     
-    private enum Field: Hashable {
-        case name
-        case phone
+    init(model: AddCloneFormModel, store: CloneStore = .shared, onClose: @escaping () -> Void) {
+        self.model = model
+        self.store = store
+        self.engine = store.engine
+        self.onClose = onClose
     }
-    
-    @FocusState private var focusedField: Field?
-    @State private var name = ""
-    @State private var phoneNumber = ""
-    @State private var isCreating = false
-    @State private var createComplete = false
-    
-    @State private var errorMessage: String?
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header
             HStack {
                 Text("Thêm tài khoản Clone")
                     .font(.headline)
                 Spacer()
-                Button(action: closeForm) {
+                Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .disabled(isCreating)
+                .disabled(model.isCreating)
             }
             .padding()
             
             Divider()
             
-            // Content Form
             VStack(alignment: .leading, spacing: 16) {
                 GroupBox("Thông tin tài khoản") {
                     VStack(alignment: .leading, spacing: 14) {
@@ -51,53 +54,48 @@ struct AddCloneView: View {
                             Text("Tên hiển thị")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            TextField("VD: Business, Shop Online...", text: $name)
-                                .textFieldStyle(.roundedBorder)
-                                .focused($focusedField, equals: .name)
-                                .onSubmit { focusedField = .phone }
-                                .disabled(isCreating)
+                            MacTextField(
+                                text: $model.name,
+                                placeholder: "VD: Business, Shop Online...",
+                                enabled: !model.isCreating
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 24)
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Số điện thoại")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            TextField("0901234567", text: $phoneNumber)
-                                .textFieldStyle(.roundedBorder)
-                                .focused($focusedField, equals: .phone)
-                                .onSubmit {
-                                    if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isCreating && store.canAddMore {
-                                        createClone()
-                                    }
-                                }
-                                .disabled(isCreating)
+                            MacTextField(
+                                text: $model.phoneNumber,
+                                placeholder: "0901234567",
+                                enabled: !model.isCreating,
+                                onSubmit: submitIfPossible
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 24)
                         }
                         
-                        // Progress bar
-                        if isCreating {
+                        if model.isCreating {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(spacing: 8) {
                                     ProgressView()
                                         .controlSize(.small)
-                                    Text(store.engine.progressMessage.isEmpty ? "Đang khởi tạo..." : store.engine.progressMessage)
+                                    Text(engine.progressMessage.isEmpty ? "Đang khởi tạo..." : engine.progressMessage)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                 }
-                                
                                 ProgressView(value: progressValue)
                                     .progressViewStyle(.linear)
                                     .tint(.accentColor)
-                                
                                 Text(progressStep)
                                     .font(.system(size: 10))
                                     .foregroundStyle(.tertiary)
                             }
                             .padding(.top, 4)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                         
-                        if let error = errorMessage {
+                        if let error = model.errorMessage {
                             HStack(spacing: 6) {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundColor(.red)
@@ -109,7 +107,7 @@ struct AddCloneView: View {
                             .padding(.top, 4)
                         }
                         
-                        if createComplete {
+                        if model.createComplete {
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.green)
@@ -119,7 +117,6 @@ struct AddCloneView: View {
                                     .fontWeight(.semibold)
                             }
                             .padding(.top, 4)
-                            .transition(.opacity)
                         }
                     }
                     .padding(10)
@@ -131,50 +128,35 @@ struct AddCloneView: View {
             
             Divider()
             
-            // Footer
             HStack {
                 Spacer()
-                Button("Huỷ", action: closeForm)
+                Button("Huỷ", action: onClose)
                     .keyboardShortcut(.escape)
-                    .disabled(isCreating)
-                Button(createComplete ? "Đóng" : "Tạo Clone") {
-                    if createComplete {
-                        closeForm()
+                    .disabled(model.isCreating)
+                Button(model.createComplete ? "Đóng" : "Tạo Clone") {
+                    if model.createComplete {
+                        onClose()
                     } else {
                         createClone()
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCreating || !store.canAddMore)
+                .disabled(model.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isCreating || !store.canAddMore)
                 .keyboardShortcut(.return)
             }
             .padding()
         }
         .frame(width: 460, height: 350)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(nsColor: .windowBackgroundColor))
-                .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-        )
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                focusedField = .name
-            }
+    }
+    
+    private func submitIfPossible() {
+        if !model.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !model.isCreating && store.canAddMore {
+            createClone()
         }
     }
     
-    private func closeForm() {
-        isPresented = false
-        store.showAddCloneSheet = false
-        AddCloneWindow.shared.close()
-    }
-    
     private var progressStep: String {
-        let msg = store.engine.progressMessage
+        let msg = engine.progressMessage
         if msg.contains("chuẩn bị") { return "Bước 1/7 — Đang chuẩn bị..." }
         if msg.contains("thư mục") { return "Bước 1/7 — Tạo thư mục dữ liệu" }
         if msg.contains("Sao chép") { return "Bước 2/7 — Sao chép ứng dụng Zalo" }
@@ -188,7 +170,7 @@ struct AddCloneView: View {
     }
     
     private var progressValue: Double {
-        let msg = store.engine.progressMessage
+        let msg = engine.progressMessage
         if msg.contains("chuẩn bị") { return 0.05 }
         if msg.contains("thư mục") { return 1.0/7.0 }
         if msg.contains("Sao chép") { return 2.0/7.0 }
@@ -203,16 +185,16 @@ struct AddCloneView: View {
     
     private func createClone() {
         guard store.canAddMore else {
-            errorMessage = "Đã đạt giới hạn tối đa \(CloneStore.maxClones) tài khoản."
+            model.errorMessage = "Đã đạt giới hạn tối đa \(CloneStore.maxClones) tài khoản."
             return
         }
-        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanName = model.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return }
         
         DiagnosticLogger.info("CREATE", "Form submit name='\(cleanName)'")
-        errorMessage = nil
-        isCreating = true
-        store.engine.progressMessage = "Đang chuẩn bị..."
+        model.errorMessage = nil
+        model.isCreating = true
+        engine.progressMessage = "Đang chuẩn bị..."
         
         Task {
             do {
@@ -220,26 +202,22 @@ struct AddCloneView: View {
                 let clone = try await store.engine.createClone(
                     index: nextIndex,
                     name: cleanName,
-                    phone: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+                    phone: model.phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
                 await MainActor.run {
                     store.clones.append(clone)
                     store.saveClones()
-                    withAnimation {
-                        isCreating = false
-                        createComplete = true
-                    }
+                    model.isCreating = false
+                    model.createComplete = true
                 }
                 try? await Task.sleep(for: .seconds(1.0))
                 await MainActor.run {
-                    closeForm()
+                    onClose()
                 }
             } catch {
                 await MainActor.run {
-                    withAnimation {
-                        isCreating = false
-                        errorMessage = error.localizedDescription
-                    }
+                    model.isCreating = false
+                    model.errorMessage = error.localizedDescription
                 }
                 DiagnosticLogger.error("CREATE", "Lỗi tạo clone: \(error.localizedDescription)")
             }
@@ -247,12 +225,73 @@ struct AddCloneView: View {
     }
 }
 
-/// Cửa sổ AppKit thật — overlay SwiftUI trên macOS 14 không vẽ form dù state đã true.
+// MARK: - AppKit text field (không bị SwiftUI reset khi đổi focus)
+
+struct MacTextField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var enabled: Bool = true
+    var onSubmit: (() -> Void)? = nil
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField(string: text)
+        field.placeholderString = placeholder
+        field.delegate = context.coordinator
+        field.isBordered = true
+        field.isBezeled = true
+        field.bezelStyle = .roundedBezel
+        field.focusRingType = .default
+        field.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        field.isEditable = enabled
+        field.isSelectable = true
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        context.coordinator.onChange = { text = $0 }
+        context.coordinator.onSubmit = onSubmit
+        return field
+    }
+    
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        context.coordinator.onChange = { text = $0 }
+        context.coordinator.onSubmit = onSubmit
+        if nsView.currentEditor() == nil, nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.isEditable = enabled
+        nsView.isEnabled = enabled
+        nsView.placeholderString = placeholder
+    }
+    
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var onChange: (String) -> Void = { _ in }
+        var onSubmit: (() -> Void)?
+        
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            onChange(field.stringValue)
+        }
+        
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                onSubmit?()
+                return true
+            }
+            return false
+        }
+    }
+}
+
+/// Cửa sổ AppKit — overlay SwiftUI trên macOS 14 không vẽ form.
 @MainActor
 final class AddCloneWindow: NSObject, NSWindowDelegate {
     static let shared = AddCloneWindow()
     
     private var panel: NSPanel?
+    private var formModel: AddCloneFormModel?
     
     func present() {
         DiagnosticLogger.info("UI", "AddCloneWindow.present")
@@ -266,14 +305,11 @@ final class AddCloneWindow: NSObject, NSWindowDelegate {
         
         close()
         
-        let root = AddCloneView(
-            isPresented: Binding(
-                get: { [weak self] in self?.panel != nil },
-                set: { [weak self] open in
-                    if !open { self?.close() }
-                }
-            )
-        )
+        let model = AddCloneFormModel()
+        formModel = model
+        let root = AddCloneView(model: model, onClose: { [weak self] in
+            self?.close()
+        })
         
         let hosting = NSHostingView(rootView: root)
         let size = NSSize(width: 480, height: 380)
@@ -311,11 +347,13 @@ final class AddCloneWindow: NSObject, NSWindowDelegate {
         panel?.delegate = nil
         panel?.orderOut(nil)
         panel = nil
+        formModel = nil
         CloneStore.shared.showAddCloneSheet = false
     }
     
     func windowWillClose(_ notification: Notification) {
         panel = nil
+        formModel = nil
         CloneStore.shared.showAddCloneSheet = false
     }
 }

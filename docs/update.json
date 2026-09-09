@@ -1,10 +1,10 @@
 {
-    "version": "2.1.8",
-    "build": 12,
+    "version": "2.1.9",
+    "build": 13,
     "release_date": "2026-09-09",
-    "release_notes": "Form thêm tài khoản mở bằng cửa sổ AppKit riêng (NSPanel) vì overlay SwiftUI không hiện dù đã nhận click.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.8/ZaloMulti-2.1.8-Universal.dmg",
-    "download_size": 1967486,
+    "release_notes": "Sửa lỗi gõ tên rồi bấm ô số điện thoại thì tên bị xóa: ô nhập dùng AppKit, dữ liệu lưu trên class không bị SwiftUI reset.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.9/ZaloMulti-2.1.9-Universal.dmg",
+    "download_size": 1976758,
     "min_os_version": "14.0",
     "mandatory": true
 }
