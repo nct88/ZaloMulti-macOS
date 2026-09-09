@@ -204,9 +204,11 @@ final class AddCloneWindow: NSObject, NSWindowDelegate, NSTextFieldDelegate {
         statusLabel?.stringValue = "Đang chuẩn bị..."
         spinner?.startAnimation(nil)
         createButton?.isEnabled = false
+        createButton?.keyEquivalent = ""
         cancelButton?.isEnabled = false
         nameField?.isEnabled = false
         phoneField?.isEnabled = false
+        window?.displayIfNeeded()
         
         Task { @MainActor in
             let ticker = Task { @MainActor in
@@ -223,7 +225,7 @@ final class AddCloneWindow: NSObject, NSWindowDelegate, NSTextFieldDelegate {
                 store.saveClones()
                 self.statusLabel?.stringValue = "Hoàn thành!"
                 self.spinner?.stopAnimation(nil)
-                try? await Task.sleep(for: .milliseconds(600))
+                try? await Task.sleep(for: .seconds(1.2))
                 self.close()
             } catch {
                 ticker.cancel()

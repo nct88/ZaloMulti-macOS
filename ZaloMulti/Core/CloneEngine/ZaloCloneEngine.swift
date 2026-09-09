@@ -80,25 +80,25 @@ final class ZaloCloneEngine: ObservableObject {
         
         do {
             progressMessage = "Tạo thư mục dữ liệu..."
-            try Self.createDirectories(dataPath: dataPath)
+            try await Task.detached { try Self.createDirectories(dataPath: dataPath) }.value
             
             progressMessage = "Sao chép Zalo app..."
-            try await Self.copyBundle(from: ZaloPaths.zaloSourcePath, to: clonePath)
+            try await Task.detached { try await Self.copyBundle(from: ZaloPaths.zaloSourcePath, to: clonePath) }.value
             
             progressMessage = "Đổi Bundle Identifier..."
-            try Self.modifyBundleID(appPath: clonePath, newBundleID: bundleID)
+            try await Task.detached { try Self.modifyBundleID(appPath: clonePath, newBundleID: bundleID) }.value
             
             progressMessage = "Đang vá Socket (app.asar)..."
-            try Self.patchAsarSockets(appPath: clonePath, instanceIndex: index)
+            try await Task.detached { try Self.patchAsarSockets(appPath: clonePath, instanceIndex: index) }.value
             
             progressMessage = "Gắn môi trường cách ly..."
-            try Self.injectCloneEnvironment(appPath: clonePath, dataPath: dataPath)
+            try await Task.detached { try Self.injectCloneEnvironment(appPath: clonePath, dataPath: dataPath) }.value
             
             progressMessage = "Xoá quarantine..."
-            try Self.removeQuarantine(appPath: clonePath)
+            try await Task.detached { try Self.removeQuarantine(appPath: clonePath) }.value
             
             progressMessage = "Re-sign ứng dụng..."
-            try await Self.resignApp(appPath: clonePath)
+            try await Task.detached { try await Self.resignApp(appPath: clonePath) }.value
             
             isProcessing = false
             progressMessage = "Hoàn thành!"
@@ -130,13 +130,20 @@ final class ZaloCloneEngine: ObservableObject {
     
     nonisolated func deleteClone(_ clone: CloneAccount) throws {
         DiagnosticLogger.info("DELETE", "Xoá clone '\(clone.name)' (index=\(clone.cloneIndex))")
-        let fm = FileManager.default
         
-        if fm.fileExists(atPath: clone.appPath) {
-            try fm.removeItem(atPath: clone.appPath)
-        }
-        if fm.fileExists(atPath: clone.dataPath) {
-            try fm.removeItem(atPath: clone.dataPath)
+        let killer = Process()
+        killer.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        killer.arguments = ["-9", "-f", "ZaloClone\(clone.cloneIndex).app"]
+        killer.standardOutput = FileHandle.nullDevice
+        killer.standardError = FileHandle.nullDevice
+        try? killer.run()
+        killer.waitUntilExit()
+        
+        Self.forceRemove(clone.appPath)
+        Self.forceRemove(clone.dataPath)
+        
+        if FileManager.default.fileExists(atPath: clone.appPath) {
+            throw CloneError.copyFailed("Không xoá được \(clone.appPath)")
         }
         DiagnosticLogger.success("DELETE", "Clone '\(clone.name)' đã xoá hoàn toàn")
     }
@@ -366,15 +373,6 @@ final class ZaloCloneEngine: ObservableObject {
         process.arguments = ["-cr", appPath]
         try process.run()
         process.waitUntilExit()
-        
-        let fm = FileManager.default
-        if let enumerator = fm.enumerator(atPath: appPath) {
-            for case let file as String in enumerator {
-                if (file as NSString).lastPathComponent.hasPrefix("._") {
-                    try? fm.removeItem(atPath: "\(appPath)/\(file)")
-                }
-            }
-        }
     }
     
     private nonisolated static func resignApp(appPath: String) async throws {

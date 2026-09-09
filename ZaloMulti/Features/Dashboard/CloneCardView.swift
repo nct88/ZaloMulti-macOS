@@ -5,11 +5,11 @@
 // Rebuild v2.1 — @EnvironmentObject, proper state management.
 
 import SwiftUI
+import AppKit
 
 struct CloneCardView: View {
     let clone: CloneAccount
     @ObservedObject var store: CloneStore = CloneStore.shared
-    @State private var showDeleteConfirm = false
     @State private var showEditSheet = false
     @State private var isHovered = false
     @State private var avatarImage: NSImage?
@@ -149,7 +149,7 @@ struct CloneCardView: View {
                 
                 // Delete
                 CardActionButton(title: nil, icon: "trash", tint: .red) {
-                    showDeleteConfirm = true
+                    confirmDelete()
                 }
             }
             .padding(.horizontal, 14)
@@ -191,15 +191,17 @@ struct CloneCardView: View {
             EditCloneView(clone: clone)
                 .environmentObject(store)
         }
-        .confirmationDialog(
-            "Xoá Clone \"\(clone.name)\"?",
-            isPresented: $showDeleteConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Xoá", role: .destructive) { store.deleteClone(clone) }
-            Button("Huỷ", role: .cancel) {}
-        } message: {
-            Text("Hành động này sẽ xoá toàn bộ dữ liệu của clone này và không thể hoàn tác.")
+    }
+    
+    private func confirmDelete() {
+        let alert = NSAlert()
+        alert.messageText = "Xoá Clone \"\(clone.name)\"?"
+        alert.informativeText = "Hành động này sẽ xoá toàn bộ dữ liệu của clone này và không thể hoàn tác."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Xoá")
+        alert.addButton(withTitle: "Huỷ")
+        if alert.runModal() == .alertFirstButtonReturn {
+            store.deleteClone(clone)
         }
     }
     

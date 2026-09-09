@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import Darwin
 
 @MainActor
 final class CloneStore: ObservableObject {
@@ -109,19 +110,21 @@ final class CloneStore: ObservableObject {
     func deleteClone(_ clone: CloneAccount) {
         DiagnosticLogger.info("STORE", "deleteClone: '\(clone.name)'")
         
-        if let pid = clone.processID, ProcessManager.isRunning(pid: pid) {
-            processManager.stopClone(clone)
+        if let pid = clone.processID {
+            kill(pid, SIGKILL)
         }
+        processManager.runningProcesses.removeValue(forKey: clone.id)
         
         do {
             try engine.deleteClone(clone)
+            clones.removeAll { $0.id == clone.id }
+            saveClones()
+            DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách")
         } catch {
             errorMessage = "Lỗi xoá files: \(error.localizedDescription)"
             showError = true
+            DiagnosticLogger.error("STORE", "deleteClone thất bại", error: error)
         }
-        
-        clones.removeAll { $0.id == clone.id }
-        saveClones()
     }
     
     // MARK: - Launch / Stop

@@ -262,6 +262,32 @@ final class DataModelTests: XCTestCase {
         try? FileManager.default.removeItem(at: script)
     }
     
+    @MainActor
+    func testCreateCloneProducesSignedMachOApp() async throws {
+        let source = "/Applications/Zalo.app"
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: source), "Cần Zalo Desktop tại /Applications/Zalo.app")
+        
+        let engine = ZaloCloneEngine()
+        let clone = try await engine.createClone(index: 97, name: "AutoTest97", phone: "0900000097")
+        defer { try? engine.deleteClone(clone) }
+        
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: "\(clone.appPath)/Contents/Info.plist"),
+            "Clone phải có Info.plist"
+        )
+        XCTAssertTrue(
+            MachOFile.isMachO(at: "\(clone.appPath)/Contents/MacOS/Zalo"),
+            "Binary clone phải là Mach-O"
+        )
+        XCTAssertEqual(clone.bundleID, "com.vng.zalo.clone97")
+        
+        let plist = NSDictionary(contentsOfFile: "\(clone.appPath)/Contents/Info.plist")
+        XCTAssertEqual(plist?["CFBundleIdentifier"] as? String, "com.vng.zalo.clone97")
+        let env = plist?["LSEnvironment"] as? [String: String]
+        XCTAssertEqual(env?["HOME"], clone.dataPath)
+        XCTAssertEqual(env?["TMPDIR"], "\(clone.dataPath)/tmp")
+    }
+    
     func testPrivateNotificationIdentifiable() {
         let n1 = PrivateNotification(
             cloneId: nil, cloneName: "A", avatarColor: "#000",
