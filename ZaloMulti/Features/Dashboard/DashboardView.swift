@@ -8,7 +8,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var store: CloneStore = CloneStore.shared
-    var onAddClone: () -> Void = { AddCloneWindow.shared.present() }
+    var onAddClone: () -> Void = { CloneStore.shared.showAddCloneSheet = true }
     
     let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -56,7 +56,7 @@ struct DashboardView: View {
             
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(store.clones) { clone in
-                    CloneCardView(clone: clone)
+                    CloneCardView(clone: clone, store: store)
                 }
                 
                 if store.canAddMore {
@@ -70,6 +70,7 @@ struct DashboardView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
+        .onReceive(NotificationCenter.default.publisher(for: CloneStore.listDidChange)) { _ in }
     }
 }
 

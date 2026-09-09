@@ -1,243 +1,211 @@
 // AddCloneView.swift
 // ZaloMulti
 //
-// Form thêm clone — cửa sổ AppKit thuần (không SwiftUI) để hiện tiến trình và lỗi.
+// Form thêm clone trong cùng cửa sổ SwiftUI (không NSWindow riêng).
 
+import SwiftUI
 import AppKit
 
 @MainActor
-final class AddCloneWindow: NSObject, NSWindowDelegate, NSTextFieldDelegate {
-    static let shared = AddCloneWindow()
+final class AddCloneFormState: NSObject, ObservableObject, NSTextFieldDelegate {
+    @Published var isCreating = false
+    @Published var errorMessage: String?
     
-    private var window: NSWindow?
-    private var nameField: NSTextField?
-    private var phoneField: NSTextField?
-    private var statusLabel: NSTextField?
-    private var errorLabel: NSTextField?
-    private var spinner: NSProgressIndicator?
-    private var cancelButton: NSButton?
-    private var createButton: NSButton?
-    private var isCreating = false
+    let nameField = NSTextField(string: "")
+    let phoneField = NSTextField(string: "")
     
-    func present() {
-        DiagnosticLogger.info("UI", "AddCloneWindow.present")
-        CloneStore.shared.showAddCloneSheet = true
-        
-        if let window, window.isVisible {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        
-        close()
-        buildWindow()
+    var trimmedName: String {
+        nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    func close() {
-        window?.delegate = nil
-        window?.orderOut(nil)
-        window = nil
-        nameField = nil
-        phoneField = nil
-        statusLabel = nil
-        errorLabel = nil
-        spinner = nil
-        cancelButton = nil
-        createButton = nil
-        isCreating = false
-        CloneStore.shared.showAddCloneSheet = false
+    var trimmedPhone: String {
+        phoneField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    func windowWillClose(_ notification: Notification) {
-        window = nil
-        isCreating = false
-        CloneStore.shared.showAddCloneSheet = false
+    override init() {
+        super.init()
+        configure(nameField, placeholder: "VD: Business, Shop Online...")
+        configure(phoneField, placeholder: "0901234567")
+        nameField.delegate = self
+        phoneField.delegate = self
     }
     
-    // MARK: - Layout
+    private func configure(_ field: NSTextField, placeholder: String) {
+        field.placeholderString = placeholder
+        field.isBordered = true
+        field.isBezeled = true
+        field.bezelStyle = .roundedBezel
+        field.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    }
     
-    private func buildWindow() {
-        let width: CGFloat = 460
-        let height: CGFloat = 260
-        let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        win.title = "Thêm tài khoản Clone"
-        win.isReleasedWhenClosed = false
-        win.delegate = self
-        win.level = .floating
-        
-        let content = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
-        win.contentView = content
-        
-        var y = height - 24
-        
-        func addLabel(_ title: String) -> NSTextField {
-            y -= 18
-            let label = NSTextField(labelWithString: title)
-            label.font = NSFont.systemFont(ofSize: 11)
-            label.textColor = .secondaryLabelColor
-            label.frame = NSRect(x: 20, y: y, width: width - 40, height: 16)
-            content.addSubview(label)
-            return label
-        }
-        
-        func addField(placeholder: String) -> NSTextField {
-            y -= 28
-            let field = NSTextField(string: "")
-            field.placeholderString = placeholder
-            field.bezelStyle = .roundedBezel
-            field.isBezeled = true
-            field.isBordered = true
-            field.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-            field.frame = NSRect(x: 20, y: y, width: width - 40, height: 24)
-            field.delegate = self
-            content.addSubview(field)
-            return field
-        }
-        
-        _ = addLabel("Tên hiển thị")
-        nameField = addField(placeholder: "VD: Business, Shop Online...")
-        y -= 8
-        _ = addLabel("Số điện thoại")
-        phoneField = addField(placeholder: "0901234567")
-        
-        y -= 28
-        let spinner = NSProgressIndicator(frame: NSRect(x: 20, y: y + 4, width: 16, height: 16))
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.isDisplayedWhenStopped = false
-        content.addSubview(spinner)
-        self.spinner = spinner
-        
-        let status = NSTextField(labelWithString: "")
-        status.font = NSFont.systemFont(ofSize: 11)
-        status.textColor = .secondaryLabelColor
-        status.lineBreakMode = .byTruncatingTail
-        status.frame = NSRect(x: 42, y: y, width: width - 62, height: 20)
-        content.addSubview(status)
-        statusLabel = status
-        
-        y -= 22
-        let error = NSTextField(wrappingLabelWithString: "")
-        error.font = NSFont.systemFont(ofSize: 11)
-        error.textColor = .systemRed
-        error.frame = NSRect(x: 20, y: y - 8, width: width - 40, height: 36)
-        content.addSubview(error)
-        errorLabel = error
-        
-        let cancel = NSButton(title: "Huỷ", target: self, action: #selector(cancelTapped))
-        cancel.bezelStyle = .rounded
-        cancel.keyEquivalent = "\u{1b}"
-        cancel.frame = NSRect(x: width - 200, y: 16, width: 80, height: 28)
-        content.addSubview(cancel)
-        cancelButton = cancel
-        
-        let create = NSButton(title: "Tạo Clone", target: self, action: #selector(createTapped))
-        create.bezelStyle = .rounded
-        create.keyEquivalent = "\r"
-        if #available(macOS 11.0, *) {
-            create.hasDestructiveAction = false
-        }
-        create.frame = NSRect(x: width - 110, y: 16, width: 90, height: 28)
-        content.addSubview(create)
-        createButton = create
-        
-        if let parent = NSApp.keyWindow ?? NSApp.mainWindow {
-            win.setFrameOrigin(NSPoint(
-                x: parent.frame.midX - width / 2,
-                y: parent.frame.midY - height / 2
-            ))
-        } else {
-            win.center()
-        }
-        win.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        win.makeFirstResponder(nameField)
-        self.window = win
+    func setEnabled(_ enabled: Bool) {
+        nameField.isEnabled = enabled
+        phoneField.isEnabled = enabled
+        nameField.isEditable = enabled
+        phoneField.isEditable = enabled
     }
     
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
             if control === nameField {
-                window?.makeFirstResponder(phoneField)
-            } else {
-                createTapped()
+                nameField.window?.makeFirstResponder(phoneField)
             }
             return true
         }
         return false
     }
+}
+
+private struct HostedTextField: NSViewRepresentable {
+    let field: NSTextField
+    func makeNSView(context: Context) -> NSTextField { field }
+    func updateNSView(_ nsView: NSTextField, context: Context) {}
+}
+
+struct AddCloneView: View {
+    @ObservedObject var store: CloneStore
+    @ObservedObject var engine: ZaloCloneEngine
+    @StateObject private var form = AddCloneFormState()
     
-    @objc private func cancelTapped() {
-        guard !isCreating else { return }
-        window?.performClose(nil)
-        close()
+    init(store: CloneStore) {
+        self.store = store
+        self.engine = store.engine
     }
     
-    @objc private func createTapped() {
-        if isCreating { return }
-        
-        let name = nameField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let phone = phoneField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !name.isEmpty else {
-            errorLabel?.stringValue = "Nhập tên hiển thị trước khi tạo clone."
-            return
-        }
-        
-        let store = CloneStore.shared
-        guard store.canAddMore else {
-            errorLabel?.stringValue = "Đã đạt giới hạn tối đa \(CloneStore.maxClones) tài khoản."
-            return
-        }
-        if store.engine.isProcessing {
-            errorLabel?.stringValue = "Đang tạo clone — vui lòng chờ."
-            return
-        }
-        
-        DiagnosticLogger.info("CREATE", "Form submit name='\(name)' phone='\(phone)'")
-        isCreating = true
-        errorLabel?.stringValue = ""
-        statusLabel?.stringValue = "Đang chuẩn bị..."
-        spinner?.startAnimation(nil)
-        createButton?.isEnabled = false
-        createButton?.keyEquivalent = ""
-        cancelButton?.isEnabled = false
-        nameField?.isEnabled = false
-        phoneField?.isEnabled = false
-        window?.displayIfNeeded()
-        
-        Task { @MainActor in
-            let ticker = Task { @MainActor in
-                while !Task.isCancelled {
-                    self.statusLabel?.stringValue = store.engine.progressMessage
-                    try? await Task.sleep(for: .milliseconds(250))
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 14) {
+                GroupBox("Thông tin tài khoản") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Tên hiển thị")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            HostedTextField(field: form.nameField)
+                                .frame(maxWidth: .infinity, minHeight: 24)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Số điện thoại")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            HostedTextField(field: form.phoneField)
+                                .frame(maxWidth: .infinity, minHeight: 24)
+                        }
+                        
+                        if form.isCreating {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text(engine.progressMessage.isEmpty ? "Đang khởi tạo..." : engine.progressMessage)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                ProgressView(value: progressValue)
+                                    .progressViewStyle(.linear)
+                            }
+                        }
+                        
+                        if let error = form.errorMessage {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(10)
                 }
             }
+            .padding(16)
+            
+            Spacer(minLength: 0)
+            
+            Divider()
+            
+            HStack {
+                Spacer()
+                Button("Huỷ") {
+                    guard !form.isCreating else { return }
+                    store.showAddCloneSheet = false
+                }
+                .keyboardShortcut(.escape)
+                .disabled(form.isCreating)
+                
+                Button("Tạo Clone") {
+                    createClone()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(form.isCreating)
+            }
+            .padding()
+        }
+        .frame(width: 440, height: 280)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .onAppear {
+            DispatchQueue.main.async {
+                form.nameField.window?.makeFirstResponder(form.nameField)
+            }
+        }
+    }
+    
+    private var progressValue: Double {
+        let msg = engine.progressMessage
+        if msg.contains("chuẩn bị") { return 0.08 }
+        if msg.contains("thư mục") { return 0.15 }
+        if msg.contains("Sao chép") { return 0.35 }
+        if msg.contains("Bundle") { return 0.5 }
+        if msg.contains("Socket") || msg.contains("asar") { return 0.65 }
+        if msg.contains("môi trường") { return 0.75 }
+        if msg.contains("quarantine") { return 0.85 }
+        if msg.contains("sign") || msg.contains("Re-sign") { return 0.93 }
+        if msg.contains("Hoàn thành") { return 1 }
+        return 0.05
+    }
+    
+    private func createClone() {
+        if form.isCreating { return }
+        let name = form.trimmedName
+        guard !name.isEmpty else {
+            form.errorMessage = "Nhập tên hiển thị trước khi tạo clone."
+            return
+        }
+        guard store.canAddMore else {
+            form.errorMessage = "Đã đạt giới hạn tối đa \(CloneStore.maxClones) tài khoản."
+            return
+        }
+        guard !store.engine.isProcessing else {
+            form.errorMessage = "Đang tạo clone — vui lòng chờ."
+            return
+        }
+        
+        DiagnosticLogger.info("CREATE", "Form submit name='\(name)' phone='\(form.trimmedPhone)'")
+        form.isCreating = true
+        form.errorMessage = nil
+        form.setEnabled(false)
+        
+        Task { @MainActor in
             do {
                 let nextIndex = (store.clones.map(\.cloneIndex).max() ?? 0) + 1
-                let clone = try await store.engine.createClone(index: nextIndex, name: name, phone: phone)
-                ticker.cancel()
-                self.statusLabel?.stringValue = "Hoàn thành!"
-                self.spinner?.stopAnimation(nil)
-                try? await Task.sleep(for: .milliseconds(500))
-                self.close()
-                // Cập nhật list SAU khi đóng panel AppKit — nếu thêm lúc panel đang key, SwiftUI không vẽ card.
-                CloneStore.shared.addCreatedClone(clone)
+                let clone = try await store.engine.createClone(
+                    index: nextIndex,
+                    name: name,
+                    phone: form.trimmedPhone
+                )
+                store.addCreatedClone(clone)
+                store.showAddCloneSheet = false
             } catch {
-                ticker.cancel()
                 DiagnosticLogger.error("CREATE", "Lỗi tạo clone: \(error.localizedDescription)")
-                self.isCreating = false
-                self.spinner?.stopAnimation(nil)
-                self.statusLabel?.stringValue = ""
-                self.errorLabel?.stringValue = error.localizedDescription
-                self.createButton?.isEnabled = true
-                self.cancelButton?.isEnabled = true
-                self.nameField?.isEnabled = true
-                self.phoneField?.isEnabled = true
+                form.isCreating = false
+                form.setEnabled(true)
+                form.errorMessage = error.localizedDescription
             }
         }
     }

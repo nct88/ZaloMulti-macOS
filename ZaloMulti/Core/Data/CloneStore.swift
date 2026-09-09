@@ -29,6 +29,8 @@ final class CloneStore: ObservableObject {
     /// Kiểm tra còn slot trống không (tối đa 4 tài khoản)
     var canAddMore: Bool { clones.count < Self.maxClones }
     
+    static let listDidChange = Notification.Name("ZaloMulti.cloneListDidChange")
+    
     func openAddClone() {
         DiagnosticLogger.info("STORE", "openAddClone canAddMore=\(canAddMore) count=\(clones.count)")
         guard canAddMore else {
@@ -36,7 +38,7 @@ final class CloneStore: ObservableObject {
             showError = true
             return
         }
-        AddCloneWindow.shared.present()
+        showAddCloneSheet = true
     }
     
     // MARK: - Dependencies
@@ -52,7 +54,6 @@ final class CloneStore: ObservableObject {
     init() {
         DiagnosticLogger.info("STORE", "CloneStore khởi tạo...")
         loadClones()
-        syncProcessStatus()
         DiagnosticLogger.info("STORE", "Đã load \(clones.count) clones từ storage")
         startSyncTimer()
     }
@@ -106,6 +107,7 @@ final class CloneStore: ObservableObject {
         clones = next
         listRevision += 1
         saveClones()
+        NotificationCenter.default.post(name: Self.listDidChange, object: nil)
         DiagnosticLogger.success("STORE", "Clone '\(clone.name)' đã thêm (total=\(clones.count) rev=\(listRevision))")
     }
     
@@ -130,6 +132,7 @@ final class CloneStore: ObservableObject {
             clones = clones.filter { $0.id != clone.id }
             listRevision += 1
             saveClones()
+            NotificationCenter.default.post(name: Self.listDidChange, object: nil)
             DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách — còn \(clones.count) rev=\(listRevision)")
         } catch {
             errorMessage = "Lỗi xoá files: \(error.localizedDescription)"
@@ -239,6 +242,12 @@ final class CloneStore: ObservableObject {
             clones = try JSONDecoder().decode([CloneAccount].self, from: data)
         } catch {
             DiagnosticLogger.error("STORE", "loadClones: decode FAILED", error: error)
+        }
+    }
+    
+    func startBackgroundSync() {
+        Task { @MainActor in
+            syncProcessStatus()
         }
     }
     

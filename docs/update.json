@@ -1,10 +1,10 @@
 {
-    "version": "2.1.14",
-    "build": 18,
+    "version": "2.1.15",
+    "build": 19,
     "release_date": "2026-09-09",
-    "release_notes": "Sửa lỗi tạo clone xong không hiện card: đóng form rồi mới cập nhật list, ép dashboard refresh.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.14/ZaloMulti-2.1.14-Universal.dmg",
-    "download_size": 1930197,
+    "release_notes": "Form thêm clone trong cùng cửa sổ. Tạo/xóa hiện ngay trên list. Khởi động không đơ, donate không chờ form.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.15/ZaloMulti-2.1.15-Universal.dmg",
+    "download_size": 1962624,
     "min_os_version": "14.0",
     "mandatory": true
 }

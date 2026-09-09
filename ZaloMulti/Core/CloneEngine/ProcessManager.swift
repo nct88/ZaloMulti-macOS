@@ -166,7 +166,7 @@ final class ProcessManager: ObservableObject {
         DiagnosticLogger.info("STOP", "Dừng tất cả clones — graceful quit")
         
         // Step 1: Gửi quit cho tất cả clone bằng osascript
-        for (id, pid) in runningProcesses {
+        for (_, pid) in runningProcesses {
             let script = """
             tell application "System Events"
                 set procs to every process whose unix id is \(pid)

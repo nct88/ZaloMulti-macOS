@@ -1,40 +1,51 @@
 // ContentView.swift
 // ZaloMulti
-//
-// Layout tổng thể: Main Content (trái) + Sidebar (phải)
-// Rebuild v2.1 — @EnvironmentObject pattern.
 
 import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var cloneStore: CloneStore
     @State private var showSidebar = true
+    @State private var listTick = 0
     
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                NotificationBarView()
-                DashboardView(store: cloneStore, onAddClone: { AddCloneWindow.shared.present() })
-            }
-            .frame(maxWidth: .infinity)
-            
-            if showSidebar {
-                Rectangle()
-                    .fill(Color(nsColor: .separatorColor))
-                    .frame(width: 1)
+        ZStack {
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    NotificationBarView()
+                    DashboardView(store: cloneStore, onAddClone: { cloneStore.showAddCloneSheet = true })
+                }
+                .frame(maxWidth: .infinity)
                 
-                SidebarView()
-                    .frame(width: 240)
+                if showSidebar {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor))
+                        .frame(width: 1)
+                    
+                    SidebarView(store: cloneStore)
+                        .frame(width: 240)
+                }
             }
+            .id(listTick)
+            
+            if cloneStore.showAddCloneSheet {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                
+                AddCloneView(store: cloneStore)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: CloneStore.listDidChange)) { _ in
+            listTick += 1
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    AddCloneWindow.shared.present()
+                    cloneStore.showAddCloneSheet = true
                 } label: {
                     Label("Thêm tài khoản", systemImage: "plus")
                 }
-                .disabled(!cloneStore.canAddMore)
+                .disabled(!cloneStore.canAddMore || cloneStore.showAddCloneSheet)
                 .help("Thêm tài khoản clone")
             }
             ToolbarItem(placement: .primaryAction) {

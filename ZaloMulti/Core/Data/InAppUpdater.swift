@@ -267,7 +267,7 @@ final class InAppUpdater: ObservableObject {
     private func installUpdate(newAppPath: URL) throws {
         let fm = FileManager.default
         let currentAppPath = Bundle.main.bundleURL
-        let appName = currentAppPath.lastPathComponent
+        _ = currentAppPath.lastPathComponent
         
         // Backup app cũ → Trash
         let backupName = "ZaloMulti_backup_\(Int(Date().timeIntervalSince1970)).app"

@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct SidebarView: View {
-    @ObservedObject var store: CloneStore = CloneStore.shared
+    @ObservedObject var store: CloneStore
     
     var body: some View {
         VStack(spacing: 0) {
@@ -32,7 +32,7 @@ struct SidebarView: View {
             Divider()
             
             // Footer Stats
-            SidebarFooterView()
+            SidebarFooterView(store: store)
                 .padding()
             
             Divider()
@@ -101,7 +101,7 @@ struct SocialLinksView: View {
 
 // MARK: - Footer Stats
 struct SidebarFooterView: View {
-    @ObservedObject var store: CloneStore = CloneStore.shared
+    @ObservedObject var store: CloneStore
     
     var body: some View {
         VStack(spacing: 8) {

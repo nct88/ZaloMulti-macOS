@@ -31,25 +31,20 @@ struct ZaloMultiApp: App {
                 .environmentObject(cloneStore)
                 .frame(minWidth: 860, minHeight: 560)
                 .onAppear {
-                    // Anti-tamper — gọi ở onAppear, KHÔNG ở init()
-                    AntiTamper.initialize()
+                    cloneStore.startBackgroundSync()
                     
-                    // Migration
-                    MigrationManager.shared.runMigrations()
-                    MigrationManager.shared.cleanupOldVersionData()
-                    
-                    // Notification monitor
-                    _ = NotificationMonitor.shared
-                    
-                    // Donate check (delay)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
-                        if !CloneStore.shared.showAddCloneSheet {
-                            DonateManager.checkAndPromptDonate()
-                        }
+                    Task { @MainActor in
+                        AntiTamper.initialize()
+                        MigrationManager.shared.runMigrations()
+                        MigrationManager.shared.cleanupOldVersionData()
+                        _ = NotificationMonitor.shared
                     }
                     
-                    // Auto-update check (delay)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                        DonateManager.checkAndPromptDonate()
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
                         if SettingsManager.shared.settings.checkUpdateOnStartup {
                             InAppUpdater.shared.checkForUpdates()
                         }
@@ -69,7 +64,7 @@ struct ZaloMultiApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Thêm Clone Mới") {
-                    AddCloneWindow.shared.present()
+                    cloneStore.showAddCloneSheet = true
                 }
                 .keyboardShortcut("n", modifiers: .command)
             }

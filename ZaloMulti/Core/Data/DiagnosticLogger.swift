@@ -14,7 +14,7 @@ import os.log
 final class DiagnosticLogger: @unchecked Sendable {
     
     // MARK: - Singleton
-    nonisolated(unsafe) static let shared = DiagnosticLogger()
+    static let shared = DiagnosticLogger()
     
     // MARK: - Log File Path
     static let logDirectory = "\(NSHomeDirectory())/Library/Logs/ZaloMulti"
