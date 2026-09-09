@@ -5,6 +5,7 @@
 
 import Foundation
 import AppKit
+import Darwin
 
 /// Constants cho ZaloCloneEngine
 enum ZaloPaths {
@@ -65,6 +66,10 @@ final class ZaloCloneEngine: ObservableObject {
         let dataPath = "\(ZaloPaths.zaloDataBase)/Data/clone\(index)"
         
         DiagnosticLogger.info("CREATE", "Bắt đầu tạo clone #\(index): '\(name)'")
+        DiagnosticLogger.info("CREATE", "Host: \(HostEnvironment.description) | OS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        if HostEnvironment.isRunningUnderRosetta {
+            DiagnosticLogger.warning("CREATE", "App đang chạy qua Rosetta trên Apple Silicon — bản Intel dễ lỗi form/ký mã")
+        }
         
         isProcessing = true
         progressMessage = "Đang chuẩn bị..."
@@ -87,8 +92,8 @@ final class ZaloCloneEngine: ObservableObject {
             try Self.patchAsarSockets(appPath: clonePath, instanceIndex: index)
             try? await Task.sleep(for: .milliseconds(300))
             
-            progressMessage = "Tạo launcher wrapper..."
-            try Self.createWrapperScript(appPath: clonePath, dataPath: dataPath)
+            progressMessage = "Gắn môi trường cách ly..."
+            try Self.injectCloneEnvironment(appPath: clonePath, dataPath: dataPath)
             try? await Task.sleep(for: .milliseconds(300))
             
             progressMessage = "Xoá quarantine..."
@@ -198,28 +203,36 @@ final class ZaloCloneEngine: ObservableObject {
         chmodProc.waitUntilExit()
     }
     
-    private nonisolated static func createWrapperScript(appPath: String, dataPath: String) throws {
+    /// Giữ nguyên Mach-O `Contents/MacOS/Zalo` (bắt buộc trên Apple Silicon) và
+    /// gắn HOME/TMPDIR qua LSEnvironment — không thay binary bằng script bash.
+    private nonisolated static func injectCloneEnvironment(appPath: String, dataPath: String) throws {
         let binaryPath = "\(appPath)/Contents/MacOS/Zalo"
-        let origBinaryPath = "\(appPath)/Contents/MacOS/Zalo.orig"
-        let fm = FileManager.default
-        
-        if !fm.fileExists(atPath: origBinaryPath) {
-            try fm.moveItem(atPath: binaryPath, toPath: origBinaryPath)
+        guard MachOFile.isMachO(at: binaryPath) else {
+            throw CloneError.copyFailed("Binary Zalo không phải Mach-O — không thể tạo clone trên chip này")
         }
         
-        let script = """
-        #!/bin/bash
-        export HOME="\(dataPath)"
-        export TMPDIR="\(dataPath)/tmp"
-        exec "$(dirname "$0")/Zalo.orig" "$@"
-        """
-        try script.write(toFile: binaryPath, atomically: true, encoding: .utf8)
+        let origBinaryPath = "\(appPath)/Contents/MacOS/Zalo.orig"
+        if FileManager.default.fileExists(atPath: origBinaryPath) {
+            try? FileManager.default.removeItem(atPath: origBinaryPath)
+        }
         
-        let chmodProcess = Process()
-        chmodProcess.executableURL = URL(fileURLWithPath: "/bin/chmod")
-        chmodProcess.arguments = ["+x", binaryPath, origBinaryPath]
-        try chmodProcess.run()
-        chmodProcess.waitUntilExit()
+        let plistPath = "\(appPath)/Contents/Info.plist"
+        guard let dict = NSMutableDictionary(contentsOfFile: plistPath) else {
+            throw CloneError.plistNotFound
+        }
+        
+        var env = dict["LSEnvironment"] as? [String: String] ?? [:]
+        env["HOME"] = dataPath
+        env["TMPDIR"] = "\(dataPath)/tmp"
+        if env["MallocNanoZone"] == nil {
+            env["MallocNanoZone"] = "0"
+        }
+        dict["LSEnvironment"] = env
+        
+        guard dict.write(toFile: plistPath, atomically: true) else {
+            throw CloneError.plistWriteFailed
+        }
+        DiagnosticLogger.info("CREATE", "LSEnvironment HOME=\(dataPath)")
     }
     
     private nonisolated static func modifyBundleID(appPath: String, newBundleID: String) throws {
@@ -335,12 +348,21 @@ final class ZaloCloneEngine: ObservableObject {
         process.arguments = ["-cr", appPath]
         try process.run()
         process.waitUntilExit()
+        
+        let fm = FileManager.default
+        if let enumerator = fm.enumerator(atPath: appPath) {
+            for case let file as String in enumerator {
+                if (file as NSString).lastPathComponent.hasPrefix("._") {
+                    try? fm.removeItem(atPath: "\(appPath)/\(file)")
+                }
+            }
+        }
     }
     
     private nonisolated static func resignApp(appPath: String) async throws {
         let fm = FileManager.default
         
-        // Tạo file entitlements tạm thời có đầy đủ JIT và Hardened Runtime permissions cho Apple Silicon
+        // JIT + Hardened Runtime — bắt buộc để Electron/V8 chạy trên Apple Silicon
         let entitlementsContent = """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -366,83 +388,141 @@ final class ZaloCloneEngine: ObservableObject {
             try? fm.removeItem(atPath: tempEntitlementsPath)
         }
         
-        // 1. Ký mã Zalo.orig (Mach-O binary thực sự) với entitlements
-        let origBinaryPath = "\(appPath)/Contents/MacOS/Zalo.orig"
-        if fm.fileExists(atPath: origBinaryPath) {
-            try runCodesign(path: origBinaryPath, entitlementsPath: tempEntitlementsPath)
-        }
+        // Ký từ trong ra ngoài. Không dùng --deep (deprecated macOS 13+, làm sai identifier helper trên ARM).
         
-        // 2. Ký mã các thư viện dylibs trong Electron Framework
         let libsDir = "\(appPath)/Contents/Frameworks/Electron Framework.framework/Versions/A/Libraries"
         if let libItems = try? fm.contentsOfDirectory(atPath: libsDir) {
             for lib in libItems where lib.hasSuffix(".dylib") {
-                try? runCodesign(path: "\(libsDir)/\(lib)")
+                try? runCodesign(path: "\(libsDir)/\(lib)", throwOnError: false)
             }
         }
         
-        // 3. Ký mã crashpad handler
         let crashpadPath = "\(appPath)/Contents/Frameworks/Electron Framework.framework/Versions/A/Helpers/chrome_crashpad_handler"
         if fm.fileExists(atPath: crashpadPath) {
-            try? runCodesign(path: crashpadPath)
+            try? runCodesign(path: crashpadPath, throwOnError: false)
         }
         
-        // 4. Ký mã các helper apps và frameworks con
         let frameworksDir = "\(appPath)/Contents/Frameworks"
         if let contents = try? fm.contentsOfDirectory(atPath: frameworksDir) {
-            for item in contents {
-                let itemPath = "\(frameworksDir)/\(item)"
-                if item.hasSuffix(".app") {
-                    try runCodesign(path: itemPath, deep: true, entitlementsPath: tempEntitlementsPath)
-                } else if item.hasSuffix(".framework") {
-                    try runCodesign(path: itemPath, deep: true)
-                }
+            for item in contents where item.hasSuffix(".framework") {
+                try? runCodesign(path: "\(frameworksDir)/\(item)", throwOnError: false)
+            }
+            for item in contents where item.hasSuffix(".app") {
+                try runCodesign(path: "\(frameworksDir)/\(item)", entitlementsPath: tempEntitlementsPath)
             }
         }
         
-        // 5. Ký mã toàn bộ App bundle chính với entitlements
-        try runCodesign(path: appPath, deep: true, noStrict: true, entitlementsPath: tempEntitlementsPath)
+        let mainExec = "\(appPath)/Contents/MacOS/Zalo"
+        if MachOFile.isMachO(at: mainExec) {
+            try runCodesign(path: mainExec, entitlementsPath: tempEntitlementsPath)
+        }
+        
+        let origBinaryPath = "\(appPath)/Contents/MacOS/Zalo.orig"
+        if fm.fileExists(atPath: origBinaryPath), MachOFile.isMachO(at: origBinaryPath) {
+            try? runCodesign(path: origBinaryPath, entitlementsPath: tempEntitlementsPath, throwOnError: false)
+        }
+        
+        try runCodesign(path: appPath, entitlementsPath: tempEntitlementsPath)
+        
+        guard MachOFile.isMachO(at: mainExec) else {
+            throw CloneError.codesignFailed("Main executable không còn là Mach-O sau khi ký mã")
+        }
     }
     
     private nonisolated static func runCodesign(
         path: String,
-        deep: Bool = false,
-        noStrict: Bool = false,
         entitlementsPath: String? = nil,
         throwOnError: Bool = true
     ) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        var args = ["--force", "--sign", "-"]
-        if let entPath = entitlementsPath {
-            args.append(contentsOf: ["--entitlements", entPath])
-        }
-        if deep { args.append("--deep") }
-        if noStrict { args.append("--no-strict") }
-        args.append(path)
-        process.arguments = args
-        let pipe = Pipe()
-        process.standardError = pipe
-        try process.run()
-        let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        
-        if process.terminationStatus != 0 {
-            let fallback = Process()
-            fallback.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-            var fbArgs = ["--force", "--sign", "-"]
+        func invoke() throws -> (status: Int32, stderr: String) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+            var args = ["--force", "--sign", "-", "--options", "runtime"]
             if let entPath = entitlementsPath {
-                fbArgs.append(contentsOf: ["--entitlements", entPath])
+                args.append(contentsOf: ["--entitlements", entPath])
             }
-            if deep { fbArgs.append("--deep") }
-            fbArgs.append(path)
-            fallback.arguments = fbArgs
-            try? fallback.run()
-            fallback.waitUntilExit()
-            
-            if fallback.terminationStatus != 0 && throwOnError {
-                let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-                throw CloneError.codesignFailed(errorMessage)
+            args.append(path)
+            process.arguments = args
+            let pipe = Pipe()
+            process.standardError = pipe
+            process.standardOutput = FileHandle.nullDevice
+            try process.run()
+            let errorData = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            let stderr = String(data: errorData, encoding: .utf8) ?? ""
+            return (process.terminationStatus, stderr)
+        }
+        
+        var result = try invoke()
+        
+        if result.status != 0, result.stderr.lowercased().contains("detritus") {
+            let xattr = Process()
+            xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+            xattr.arguments = ["-cr", path]
+            try? xattr.run()
+            xattr.waitUntilExit()
+            result = try invoke()
+        }
+        
+        if result.status != 0 && throwOnError {
+            let trimmed = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            DiagnosticLogger.error("CODESIGN", "Fail \(path): \(trimmed)")
+            throw CloneError.codesignFailed("[\(HostEnvironment.description)] \(trimmed.isEmpty ? "exit \(result.status)" : trimmed)")
+        }
+    }
+}
+
+// MARK: - Host / Mach-O helpers
+
+enum HostEnvironment {
+    static var machineArchitecture: String {
+        var info = utsname()
+        uname(&info)
+        return withUnsafePointer(to: &info.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 256) {
+                String(cString: $0)
             }
+        }
+    }
+    
+    static var isRunningUnderRosetta: Bool {
+        var translated: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        let result = sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0)
+        return result == 0 && translated == 1
+    }
+    
+    static var hasArm64Hardware: Bool {
+        var value: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        let result = sysctlbyname("hw.optional.arm64", &value, &size, nil, 0)
+        return result == 0 && value == 1
+    }
+    
+    static var description: String {
+        if isRunningUnderRosetta {
+            return "\(machineArchitecture) via Rosetta (Apple Silicon)"
+        }
+        if hasArm64Hardware {
+            return "arm64 (Apple Silicon native)"
+        }
+        return "\(machineArchitecture) (Intel)"
+    }
+}
+
+enum MachOFile {
+    static func isMachO(at path: String) -> Bool {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return false }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 4), data.count == 4 else { return false }
+        let magic = data.withUnsafeBytes { ptr in
+            ptr.load(as: UInt32.self)
+        }
+        switch magic {
+        case 0xfeedface, 0xcefaedfe, 0xfeedfacf, 0xcffaedfe, 0xcafebabe, 0xbebafeca:
+            return true
+        default:
+            return false
         }
     }
 }

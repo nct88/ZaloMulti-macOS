@@ -16,6 +16,23 @@ struct DashboardView: View {
     
     var body: some View {
         ScrollView {
+            if HostEnvironment.isRunningUnderRosetta {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("Bạn đang chạy bản Intel trên chip Apple Silicon (Rosetta). Hãy dùng file `Universal.dmg` hoặc `AppleSilicon.dmg` để tránh lỗi tạo tài khoản.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
+            
             // Section header
             HStack {
                 Text("TÀI KHOẢN CLONE")

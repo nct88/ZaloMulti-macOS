@@ -245,6 +245,23 @@ final class DataModelTests: XCTestCase {
         XCTAssertEqual(ZaloPaths.originalBundleID, "com.vng.zalo")
     }
     
+    func testHostEnvironmentDescriptionIsNonEmpty() {
+        XCTAssertFalse(HostEnvironment.description.isEmpty)
+        XCTAssertFalse(HostEnvironment.machineArchitecture.isEmpty)
+    }
+    
+    func testMachOFileDetectsZaloBinary() {
+        let zaloBinary = "/Applications/Zalo.app/Contents/MacOS/Zalo"
+        if FileManager.default.fileExists(atPath: zaloBinary) {
+            XCTAssertTrue(MachOFile.isMachO(at: zaloBinary), "Zalo binary phải là Mach-O")
+        }
+        
+        let script = FileManager.default.temporaryDirectory.appendingPathComponent("zalo_script_test.sh")
+        try? "#!/bin/bash\necho hi\n".write(to: script, atomically: true, encoding: .utf8)
+        XCTAssertFalse(MachOFile.isMachO(at: script.path), "Script bash không phải Mach-O")
+        try? FileManager.default.removeItem(at: script)
+    }
+    
     func testPrivateNotificationIdentifiable() {
         let n1 = PrivateNotification(
             cloneId: nil, cloneName: "A", avatarColor: "#000",

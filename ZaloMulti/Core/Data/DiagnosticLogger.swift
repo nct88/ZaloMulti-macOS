@@ -58,6 +58,7 @@ final class DiagnosticLogger: @unchecked Sendable {
         ║  ZaloMulti v\(version) — Session Started
         ║  \(dateFormatter.string(from: Date()))
         ║  macOS \(ProcessInfo.processInfo.operatingSystemVersionString)
+        ║  Host: \(HostEnvironment.description)
         ║  Log file: \(Self.logFilePath)
         ════════════════════════════════════════════════════════════════
         

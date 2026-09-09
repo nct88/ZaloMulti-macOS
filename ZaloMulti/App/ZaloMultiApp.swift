@@ -14,7 +14,11 @@ struct ZaloMultiApp: App {
     init() {
         // Logger init (lazy — không phụ thuộc SecureConfig)
         DiagnosticLogger.info("APP", "ZaloMulti — khởi động")
+        DiagnosticLogger.info("APP", "Host: \(HostEnvironment.description)")
         DiagnosticLogger.info("APP", "Log file: \(DiagnosticLogger.logFilePath)")
+        if HostEnvironment.isRunningUnderRosetta {
+            DiagnosticLogger.warning("APP", "Đang chạy bản Intel qua Rosetta trên chip M — form thêm clone dễ lỗi. Dùng bản Universal/Apple Silicon.")
+        }
         
         // Detect Zalo source
         let zaloInfo = ZaloCloneEngine().detectSourceZalo()

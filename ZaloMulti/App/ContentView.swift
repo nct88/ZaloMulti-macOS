@@ -31,19 +31,15 @@ struct ContentView: View {
                 }
             }
             
-            // Custom In-Window Modal Overlay for Add Clone (100% immune to macOS sheet re-render bugs)
+            // In-window modal. Không gắn onTapGesture lên overlay — gesture SwiftUI
+            // chiếm hit-test của TextField trên Apple Silicon / Rosetta.
             if cloneStore.showAddCloneSheet {
                 Color.black.opacity(0.35)
                     .ignoresSafeArea()
-                    .onTapGesture {
-                        if !cloneStore.engine.isProcessing {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                cloneStore.showAddCloneSheet = false
-                            }
-                        }
-                    }
+                    .allowsHitTesting(true)
                 
                 AddCloneView(isPresented: $cloneStore.showAddCloneSheet)
+                    .contentShape(Rectangle())
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
                     .zIndex(100)
             }

@@ -5,17 +5,12 @@
 // Rebuild v2.1 — Custom In-Window Modal chống mất dữ liệu khi re-render trên macOS.
 
 import SwiftUI
+import AppKit
 
 struct AddCloneView: View {
     @Binding var isPresented: Bool
     @ObservedObject var store: CloneStore = CloneStore.shared
     
-    private enum Field: Hashable {
-        case name
-        case phone
-    }
-    
-    @FocusState private var focusedField: Field?
     @State private var name = ""
     @State private var phoneNumber = ""
     @State private var isCreating = false
@@ -50,26 +45,30 @@ struct AddCloneView: View {
                             Text("Tên hiển thị")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            TextField("VD: Business, Shop Online...", text: $name)
-                                .textFieldStyle(.roundedBorder)
-                                .focused($focusedField, equals: .name)
-                                .onSubmit { focusedField = .phone }
-                                .disabled(isCreating)
+                            ReliableTextField(
+                                placeholder: "VD: Business, Shop Online...",
+                                text: $name,
+                                disabled: isCreating,
+                                becomeFirstResponder: true
+                            )
+                            .frame(height: 22)
                         }
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Số điện thoại")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            TextField("0901234567", text: $phoneNumber)
-                                .textFieldStyle(.roundedBorder)
-                                .focused($focusedField, equals: .phone)
-                                .onSubmit {
+                            ReliableTextField(
+                                placeholder: "0901234567",
+                                text: $phoneNumber,
+                                disabled: isCreating,
+                                onSubmit: {
                                     if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isCreating && store.canAddMore {
                                         createClone()
                                     }
                                 }
-                                .disabled(isCreating)
+                            )
+                            .frame(height: 22)
                         }
                         
                         // Progress bar
@@ -159,11 +158,6 @@ struct AddCloneView: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                focusedField = .name
-            }
-        }
     }
     
     private func closeForm() {
@@ -180,7 +174,7 @@ struct AddCloneView: View {
         if msg.contains("Sao chép") { return "Bước 2/7 — Sao chép ứng dụng Zalo" }
         if msg.contains("Bundle") { return "Bước 3/7 — Đổi Bundle Identifier" }
         if msg.contains("Socket") || msg.contains("asar") { return "Bước 4/7 — Vá Socket cách ly" }
-        if msg.contains("wrapper") || msg.contains("launcher") { return "Bước 5/7 — Tạo launcher wrapper" }
+        if msg.contains("wrapper") || msg.contains("launcher") || msg.contains("môi trường") || msg.contains("cách ly") { return "Bước 5/7 — Gắn môi trường cách ly" }
         if msg.contains("quarantine") { return "Bước 6/7 — Xoá quarantine" }
         if msg.contains("sign") || msg.contains("Re-sign") { return "Bước 7/7 — Ký mã ứng dụng" }
         if msg.contains("Hoàn thành") { return "✅ Hoàn thành!" }
@@ -194,7 +188,7 @@ struct AddCloneView: View {
         if msg.contains("Sao chép") { return 2.0/7.0 }
         if msg.contains("Bundle") { return 3.0/7.0 }
         if msg.contains("Socket") || msg.contains("asar") { return 4.0/7.0 }
-        if msg.contains("wrapper") || msg.contains("launcher") { return 5.0/7.0 }
+        if msg.contains("wrapper") || msg.contains("launcher") || msg.contains("môi trường") || msg.contains("cách ly") { return 5.0/7.0 }
         if msg.contains("quarantine") { return 6.0/7.0 }
         if msg.contains("sign") || msg.contains("Re-sign") { return 6.5/7.0 }
         if msg.contains("Hoàn thành") { return 1.0 }
@@ -242,6 +236,66 @@ struct AddCloneView: View {
                 }
                 DiagnosticLogger.error("CREATE", "Lỗi tạo clone: \(error.localizedDescription)")
             }
+        }
+    }
+}
+
+// MARK: - AppKit text field (SwiftUI TextField hay mất focus trên Apple Silicon)
+
+struct ReliableTextField: NSViewRepresentable {
+    let placeholder: String
+    @Binding var text: String
+    var disabled: Bool = false
+    var becomeFirstResponder: Bool = false
+    var onSubmit: (() -> Void)? = nil
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.placeholderString = placeholder
+        field.stringValue = text
+        field.delegate = context.coordinator
+        field.isBordered = true
+        field.isBezeled = true
+        field.bezelStyle = .roundedBezel
+        field.focusRingType = .default
+        field.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        field.isEditable = !disabled
+        field.isSelectable = true
+        if becomeFirstResponder {
+            DispatchQueue.main.async {
+                field.window?.makeFirstResponder(field)
+            }
+        }
+        return field
+    }
+    
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.isEditable = !disabled
+        nsView.isEnabled = !disabled
+    }
+    
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: ReliableTextField
+        init(_ parent: ReliableTextField) { self.parent = parent }
+        
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            parent.text = field.stringValue
+        }
+        
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                parent.onSubmit?()
+                return true
+            }
+            return false
         }
     }
 }

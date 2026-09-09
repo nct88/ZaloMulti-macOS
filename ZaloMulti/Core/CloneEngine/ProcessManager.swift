@@ -48,8 +48,17 @@ final class ProcessManager: ObservableObject {
             try? fm.createSymbolicLink(atPath: "\(cloneRootZaloData)/Partitions", withDestinationPath: "\(cloneZaloDataDir)/Partitions")
         }
         
+        // Ưu tiên Mach-O `Zalo`. Chỉ fallback sang Zalo.orig với clone cũ (wrapper bash).
         let origBinaryPath = "\(clone.appPath)/Contents/MacOS/Zalo.orig"
-        let actualBinary = fm.fileExists(atPath: origBinaryPath) ? origBinaryPath : binaryPath
+        let actualBinary: String
+        if MachOFile.isMachO(at: binaryPath) {
+            actualBinary = binaryPath
+        } else if MachOFile.isMachO(at: origBinaryPath) {
+            actualBinary = origBinaryPath
+        } else {
+            actualBinary = binaryPath
+        }
+        DiagnosticLogger.info("LAUNCH", "Binary: \(actualBinary) machO=\(MachOFile.isMachO(at: actualBinary))")
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: actualBinary)
