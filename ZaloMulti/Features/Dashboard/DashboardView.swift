@@ -8,7 +8,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var store: CloneStore = CloneStore.shared
-    var onAddClone: () -> Void = { CloneStore.shared.openAddClone() }
+    var onAddClone: () -> Void = { AddCloneWindow.shared.present() }
     
     let columns = [
         GridItem(.flexible(), spacing: 12),

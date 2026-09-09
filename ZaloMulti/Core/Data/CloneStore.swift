@@ -34,7 +34,7 @@ final class CloneStore: ObservableObject {
             showError = true
             return
         }
-        showAddCloneSheet = true
+        AddCloneWindow.shared.present()
     }
     
     // MARK: - Dependencies

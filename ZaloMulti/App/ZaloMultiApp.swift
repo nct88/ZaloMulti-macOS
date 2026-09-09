@@ -42,8 +42,10 @@ struct ZaloMultiApp: App {
                     _ = NotificationMonitor.shared
                     
                     // Donate check (delay)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        DonateManager.checkAndPromptDonate()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                        if !CloneStore.shared.showAddCloneSheet {
+                            DonateManager.checkAndPromptDonate()
+                        }
                     }
                     
                     // Auto-update check (delay)
@@ -67,7 +69,7 @@ struct ZaloMultiApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Thêm Clone Mới") {
-                    cloneStore.showAddCloneSheet = true
+                    AddCloneWindow.shared.present()
                 }
                 .keyboardShortcut("n", modifiers: .command)
             }

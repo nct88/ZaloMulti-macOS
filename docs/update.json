@@ -1,10 +1,10 @@
 {
-    "version": "2.1.7",
-    "build": 11,
+    "version": "2.1.8",
+    "build": 12,
     "release_date": "2026-09-09",
-    "release_notes": "Sửa lỗi bấm Thêm tài khoản không hiện form: bỏ overlay animation bị ẩn, thêm nút + trên thanh công cụ.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.7/ZaloMulti-2.1.7-Universal.dmg",
-    "download_size": 1969219,
+    "release_notes": "Form thêm tài khoản mở bằng cửa sổ AppKit riêng (NSPanel) vì overlay SwiftUI không hiện dù đã nhận click.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.8/ZaloMulti-2.1.8-Universal.dmg",
+    "download_size": 1967486,
     "min_os_version": "14.0",
     "mandatory": true
 }

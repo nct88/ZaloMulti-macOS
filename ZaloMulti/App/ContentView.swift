@@ -9,13 +9,12 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var cloneStore: CloneStore
     @State private var showSidebar = true
-    @State private var showAddModal = false
     
     var body: some View {
         HStack(spacing: 0) {
             VStack(spacing: 0) {
                 NotificationBarView()
-                DashboardView(onAddClone: openAddModal)
+                DashboardView(onAddClone: { AddCloneWindow.shared.present() })
             }
             .frame(maxWidth: .infinity)
             
@@ -28,32 +27,14 @@ struct ContentView: View {
                     .frame(width: 240)
             }
         }
-        .overlay {
-            if showAddModal {
-                ZStack {
-                    Rectangle()
-                        .fill(Color.black.opacity(0.4))
-                        .ignoresSafeArea()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    
-                    AddCloneView(isPresented: $showAddModal)
-                }
-            }
-        }
-        .onChange(of: cloneStore.showAddCloneSheet) { _, isOn in
-            showAddModal = isOn
-        }
-        .onChange(of: showAddModal) { _, isOn in
-            if cloneStore.showAddCloneSheet != isOn {
-                cloneStore.showAddCloneSheet = isOn
-            }
-        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: openAddModal) {
+                Button {
+                    AddCloneWindow.shared.present()
+                } label: {
                     Label("Thêm tài khoản", systemImage: "plus")
                 }
-                .disabled(!cloneStore.canAddMore || showAddModal)
+                .disabled(!cloneStore.canAddMore)
                 .help("Thêm tài khoản clone")
             }
             ToolbarItem(placement: .primaryAction) {
@@ -70,11 +51,5 @@ struct ContentView: View {
         } message: {
             Text(cloneStore.errorMessage ?? "Đã xảy ra lỗi không xác định")
         }
-    }
-    
-    private func openAddModal() {
-        DiagnosticLogger.info("UI", "Mở form thêm tài khoản")
-        showAddModal = true
-        cloneStore.showAddCloneSheet = true
     }
 }

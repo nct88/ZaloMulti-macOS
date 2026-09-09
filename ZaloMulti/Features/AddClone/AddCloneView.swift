@@ -5,6 +5,7 @@
 // Rebuild v2.1 — Custom In-Window Modal chống mất dữ liệu khi re-render trên macOS.
 
 import SwiftUI
+import AppKit
 
 struct AddCloneView: View {
     @Binding var isPresented: Bool
@@ -167,10 +168,9 @@ struct AddCloneView: View {
     }
     
     private func closeForm() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isPresented = false
-            store.showAddCloneSheet = false
-        }
+        isPresented = false
+        store.showAddCloneSheet = false
+        AddCloneWindow.shared.close()
     }
     
     private var progressStep: String {
@@ -244,5 +244,78 @@ struct AddCloneView: View {
                 DiagnosticLogger.error("CREATE", "Lỗi tạo clone: \(error.localizedDescription)")
             }
         }
+    }
+}
+
+/// Cửa sổ AppKit thật — overlay SwiftUI trên macOS 14 không vẽ form dù state đã true.
+@MainActor
+final class AddCloneWindow: NSObject, NSWindowDelegate {
+    static let shared = AddCloneWindow()
+    
+    private var panel: NSPanel?
+    
+    func present() {
+        DiagnosticLogger.info("UI", "AddCloneWindow.present")
+        CloneStore.shared.showAddCloneSheet = true
+        
+        if let panel, panel.isVisible {
+            panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        
+        close()
+        
+        let root = AddCloneView(
+            isPresented: Binding(
+                get: { [weak self] in self?.panel != nil },
+                set: { [weak self] open in
+                    if !open { self?.close() }
+                }
+            )
+        )
+        
+        let hosting = NSHostingView(rootView: root)
+        let size = NSSize(width: 480, height: 380)
+        hosting.frame = NSRect(origin: .zero, size: size)
+        
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Thêm tài khoản Clone"
+        panel.contentView = hosting
+        panel.isReleasedWhenClosed = false
+        panel.hidesOnDeactivate = false
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.delegate = self
+        if let parent = NSApp.keyWindow ?? NSApp.mainWindow {
+            panel.setFrameOrigin(NSPoint(
+                x: parent.frame.midX - size.width / 2,
+                y: parent.frame.midY - size.height / 2
+            ))
+        } else {
+            panel.center()
+        }
+        panel.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.panel = panel
+    }
+    
+    func close() {
+        guard panel != nil else { return }
+        DiagnosticLogger.info("UI", "AddCloneWindow.close")
+        panel?.delegate = nil
+        panel?.orderOut(nil)
+        panel = nil
+        CloneStore.shared.showAddCloneSheet = false
+    }
+    
+    func windowWillClose(_ notification: Notification) {
+        panel = nil
+        CloneStore.shared.showAddCloneSheet = false
     }
 }
