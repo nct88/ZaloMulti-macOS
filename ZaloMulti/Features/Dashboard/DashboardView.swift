@@ -8,6 +8,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var store: CloneStore = CloneStore.shared
+    var onAddClone: () -> Void = { CloneStore.shared.openAddClone() }
     
     let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -60,16 +61,13 @@ struct DashboardView: View {
                 
                 // Nút thêm clone — chỉ hiện khi chưa đạt giới hạn
                 if store.canAddMore {
-                    AddCloneCardView {
-                        store.showAddCloneSheet = true
-                    }
+                    AddCloneCardView(action: onAddClone)
                 } else {
                     MaxClonesReachedView()
                 }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
-            .animation(.spring(response: 0.3), value: store.clones.count)
         }
     }
 }
@@ -98,6 +96,7 @@ struct AddCloneCardView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 130)
+            .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: 14)
                     .fill(Color(nsColor: .windowBackgroundColor))
@@ -110,10 +109,9 @@ struct AddCloneCardView: View {
                     )
             )
             .shadow(color: .black.opacity(isHovered ? 0.08 : 0.04), radius: isHovered ? 8 : 4, y: 2)
-            .scaleEffect(isHovered ? 1.01 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: isHovered)
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering
             if hovering {

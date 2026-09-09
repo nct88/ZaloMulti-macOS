@@ -1,10 +1,10 @@
 {
-    "version": "2.1.6",
-    "build": 10,
+    "version": "2.1.7",
+    "build": 11,
     "release_date": "2026-09-09",
-    "release_notes": "Sửa lỗi 2.1.5 không tạo được clone trên Intel: khôi phục ô nhập SwiftUI (ô AppKit bị co chiều rộng nên không gõ được, nút Tạo Clone bị khóa). Giữ sửa ký mã cho chip M.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.6/ZaloMulti-2.1.6-Universal.dmg",
-    "download_size": 1964190,
+    "release_notes": "Sửa lỗi bấm Thêm tài khoản không hiện form: bỏ overlay animation bị ẩn, thêm nút + trên thanh công cụ.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.7/ZaloMulti-2.1.7-Universal.dmg",
+    "download_size": 1969219,
     "min_os_version": "14.0",
     "mandatory": true
 }

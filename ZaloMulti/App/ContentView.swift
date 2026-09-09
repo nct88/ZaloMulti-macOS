@@ -9,48 +9,56 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var cloneStore: CloneStore
     @State private var showSidebar = true
+    @State private var showAddModal = false
     
     var body: some View {
-        ZStack {
-            HStack(spacing: 0) {
-                // LEFT: Main Dashboard
-                VStack(spacing: 0) {
-                    NotificationBarView()
-                    DashboardView()
-                }
-                .frame(maxWidth: .infinity)
-                
-                if showSidebar {
-                    Rectangle()
-                        .fill(Color(nsColor: .separatorColor))
-                        .frame(width: 1)
-                    
-                    SidebarView()
-                        .frame(width: 240)
-                        .transition(.move(edge: .trailing))
-                }
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                NotificationBarView()
+                DashboardView(onAddClone: openAddModal)
             }
+            .frame(maxWidth: .infinity)
             
-            // In-window modal. Không gắn onTapGesture lên overlay — gesture SwiftUI
-            // chiếm hit-test của TextField trên Apple Silicon / Rosetta.
-            if cloneStore.showAddCloneSheet {
-                Color.black.opacity(0.35)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(true)
+            if showSidebar {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1)
                 
-                AddCloneView(isPresented: $cloneStore.showAddCloneSheet)
-                    .contentShape(Rectangle())
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
-                    .zIndex(100)
+                SidebarView()
+                    .frame(width: 240)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: cloneStore.showAddCloneSheet)
+        .overlay {
+            if showAddModal {
+                ZStack {
+                    Rectangle()
+                        .fill(Color.black.opacity(0.4))
+                        .ignoresSafeArea()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    
+                    AddCloneView(isPresented: $showAddModal)
+                }
+            }
+        }
+        .onChange(of: cloneStore.showAddCloneSheet) { _, isOn in
+            showAddModal = isOn
+        }
+        .onChange(of: showAddModal) { _, isOn in
+            if cloneStore.showAddCloneSheet != isOn {
+                cloneStore.showAddCloneSheet = isOn
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                Button(action: openAddModal) {
+                    Label("Thêm tài khoản", systemImage: "plus")
+                }
+                .disabled(!cloneStore.canAddMore || showAddModal)
+                .help("Thêm tài khoản clone")
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showSidebar.toggle()
-                    }
+                    showSidebar.toggle()
                 } label: {
                     Image(systemName: "sidebar.right")
                 }
@@ -62,5 +70,11 @@ struct ContentView: View {
         } message: {
             Text(cloneStore.errorMessage ?? "Đã xảy ra lỗi không xác định")
         }
+    }
+    
+    private func openAddModal() {
+        DiagnosticLogger.info("UI", "Mở form thêm tài khoản")
+        showAddModal = true
+        cloneStore.showAddCloneSheet = true
     }
 }

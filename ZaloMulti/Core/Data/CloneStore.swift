@@ -27,6 +27,16 @@ final class CloneStore: ObservableObject {
     /// Kiểm tra còn slot trống không (tối đa 4 tài khoản)
     var canAddMore: Bool { clones.count < Self.maxClones }
     
+    func openAddClone() {
+        DiagnosticLogger.info("STORE", "openAddClone canAddMore=\(canAddMore) count=\(clones.count)")
+        guard canAddMore else {
+            errorMessage = "Đã đạt giới hạn tối đa \(Self.maxClones) tài khoản."
+            showError = true
+            return
+        }
+        showAddCloneSheet = true
+    }
+    
     // MARK: - Dependencies
     let engine = ZaloCloneEngine()
     let processManager = ProcessManager()
