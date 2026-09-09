@@ -71,38 +71,34 @@ final class ZaloCloneEngine: ObservableObject {
             DiagnosticLogger.warning("CREATE", "App đang chạy qua Rosetta trên Apple Silicon — bản Intel dễ lỗi form/ký mã")
         }
         
+        if isProcessing {
+            throw CloneError.copyFailed("Đang tạo clone khác — chờ xong rồi thử lại")
+        }
+        
         isProcessing = true
         progressMessage = "Đang chuẩn bị..."
-        try? await Task.sleep(for: .milliseconds(400))
         
         do {
             progressMessage = "Tạo thư mục dữ liệu..."
             try Self.createDirectories(dataPath: dataPath)
-            try? await Task.sleep(for: .milliseconds(300))
             
-            progressMessage = "Sao chép Zalo app (APFS clone)..."
+            progressMessage = "Sao chép Zalo app..."
             try await Self.copyBundle(from: ZaloPaths.zaloSourcePath, to: clonePath)
-            try? await Task.sleep(for: .milliseconds(300))
             
             progressMessage = "Đổi Bundle Identifier..."
             try Self.modifyBundleID(appPath: clonePath, newBundleID: bundleID)
-            try? await Task.sleep(for: .milliseconds(300))
             
             progressMessage = "Đang vá Socket (app.asar)..."
             try Self.patchAsarSockets(appPath: clonePath, instanceIndex: index)
-            try? await Task.sleep(for: .milliseconds(300))
             
             progressMessage = "Gắn môi trường cách ly..."
             try Self.injectCloneEnvironment(appPath: clonePath, dataPath: dataPath)
-            try? await Task.sleep(for: .milliseconds(300))
             
             progressMessage = "Xoá quarantine..."
             try Self.removeQuarantine(appPath: clonePath)
-            try? await Task.sleep(for: .milliseconds(300))
             
             progressMessage = "Re-sign ứng dụng..."
             try await Self.resignApp(appPath: clonePath)
-            try? await Task.sleep(for: .milliseconds(300))
             
             isProcessing = false
             progressMessage = "Hoàn thành!"
@@ -164,43 +160,67 @@ final class ZaloCloneEngine: ObservableObject {
         }
     }
     
+    private nonisolated static func forceRemove(_ path: String) {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else { return }
+        let chmod = Process()
+        chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        chmod.arguments = ["-R", "u+w", path]
+        try? chmod.run()
+        chmod.waitUntilExit()
+        let chflags = Process()
+        chflags.executableURL = URL(fileURLWithPath: "/usr/bin/chflags")
+        chflags.arguments = ["-R", "nouchg", path]
+        try? chflags.run()
+        chflags.waitUntilExit()
+        try? fm.removeItem(atPath: path)
+        if fm.fileExists(atPath: path) {
+            let rm = Process()
+            rm.executableURL = URL(fileURLWithPath: "/bin/rm")
+            rm.arguments = ["-rf", path]
+            try? rm.run()
+            rm.waitUntilExit()
+        }
+    }
+    
     private nonisolated static func copyBundle(from source: String, to destination: String) async throws {
         let fm = FileManager.default
-        if fm.fileExists(atPath: destination) {
-            let chmodClean = Process()
-            chmodClean.executableURL = URL(fileURLWithPath: "/bin/chmod")
-            chmodClean.arguments = ["-R", "u+w", destination]
-            try? chmodClean.run()
-            chmodClean.waitUntilExit()
-            try? fm.removeItem(atPath: destination)
+        guard fm.fileExists(atPath: "\(source)/Contents/Info.plist") else {
+            throw CloneError.zaloNotFound
         }
         
-        // 1. Thử copy APFS clone siêu tốc (cp -c -R)
-        let cpProcess = Process()
-        cpProcess.executableURL = URL(fileURLWithPath: "/bin/cp")
-        cpProcess.arguments = ["-c", "-R", source, destination]
-        try? cpProcess.run()
-        cpProcess.waitUntilExit()
+        forceRemove(destination)
         
-        // 2. Nếu cp -c thất bại thì fallback sang rsync
-        if cpProcess.terminationStatus != 0 {
-            if fm.fileExists(atPath: destination) { try? fm.removeItem(atPath: destination) }
-            let rsyncProcess = Process()
-            rsyncProcess.executableURL = URL(fileURLWithPath: "/usr/bin/rsync")
-            rsyncProcess.arguments = ["-a", source + "/", destination + "/"]
-            try rsyncProcess.run()
-            rsyncProcess.waitUntilExit()
-            guard rsyncProcess.terminationStatus == 0 else {
-                throw CloneError.copyFailed("rsync exit code \(rsyncProcess.terminationStatus)")
+        let ditto = Process()
+        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        ditto.arguments = [source, destination]
+        try ditto.run()
+        ditto.waitUntilExit()
+        
+        if ditto.terminationStatus != 0 || !fm.fileExists(atPath: "\(destination)/Contents/Info.plist") {
+            forceRemove(destination)
+            let rsync = Process()
+            rsync.executableURL = URL(fileURLWithPath: "/usr/bin/rsync")
+            rsync.arguments = ["-a", "--delete", source + "/", destination + "/"]
+            try rsync.run()
+            rsync.waitUntilExit()
+            guard rsync.terminationStatus == 0 else {
+                throw CloneError.copyFailed("Không sao chép được Zalo (ditto/rsync \(rsync.terminationStatus))")
             }
         }
         
-        // 3. Cấp quyền ghi toàn bộ file
-        let chmodProc = Process()
-        chmodProc.executableURL = URL(fileURLWithPath: "/bin/chmod")
-        chmodProc.arguments = ["-R", "u+w", destination]
-        try? chmodProc.run()
-        chmodProc.waitUntilExit()
+        let chmod = Process()
+        chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        chmod.arguments = ["-R", "u+w", destination]
+        try? chmod.run()
+        chmod.waitUntilExit()
+        
+        guard fm.fileExists(atPath: "\(destination)/Contents/Info.plist") else {
+            throw CloneError.plistNotFound
+        }
+        guard MachOFile.isMachO(at: "\(destination)/Contents/MacOS/Zalo") else {
+            throw CloneError.copyFailed("Sao chép xong nhưng binary Zalo không hợp lệ — thử xoá thư mục Clones rồi tạo lại")
+        }
     }
     
     /// Giữ nguyên Mach-O `Contents/MacOS/Zalo` (bắt buộc trên Apple Silicon) và

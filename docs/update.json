@@ -1,10 +1,10 @@
 {
-    "version": "2.1.10",
-    "build": 14,
+    "version": "2.1.11",
+    "build": 15,
     "release_date": "2026-09-09",
-    "release_notes": "Nút Tạo Clone luôn bấm được, đọc thẳng tên từ ô nhập. Bỏ tiêu đề/nút X trùng với cửa sổ.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.10/ZaloMulti-2.1.10-Universal.dmg",
-    "download_size": 1966050,
+    "release_notes": "Form thêm clone hiện spinner và lỗi rõ. Chặn tạo chồng nhau. Copy Zalo bằng ditto.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.11/ZaloMulti-2.1.11-Universal.dmg",
+    "download_size": 1919306,
     "min_os_version": "14.0",
     "mandatory": true
 }
