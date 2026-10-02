@@ -31,6 +31,8 @@ struct ZaloMultiApp: App {
                 .environmentObject(cloneStore)
                 .frame(minWidth: 860, minHeight: 560)
                 .onAppear {
+                    DiagnosticTracer.start()
+                    DiagnosticTracer.snapshot(store: cloneStore, reason: "launch")
                     cloneStore.startBackgroundSync()
                     
                     Task { @MainActor in
@@ -64,7 +66,7 @@ struct ZaloMultiApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Thêm Clone Mới") {
-                    cloneStore.showAddCloneSheet = true
+                    cloneStore.openAddClone(source: "menu-cmd-n")
                 }
                 .keyboardShortcut("n", modifiers: .command)
             }
@@ -73,6 +75,12 @@ struct ZaloMultiApp: App {
                     InAppUpdater.shared.checkForUpdates(showUpToDatePrompt: true)
                     showUpdateSheet = true
                 }
+            }
+            CommandGroup(after: .help) {
+                Button("Xuất log chẩn đoán ra Desktop") {
+                    DiagnosticTracer.exportReport(store: cloneStore)
+                }
+                .keyboardShortcut("l", modifiers: [.command, .option])
             }
             CommandMenu("Clone") {
                 Button("Dừng tất cả") {

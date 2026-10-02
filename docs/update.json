@@ -1,10 +1,10 @@
 {
-    "version": "2.1.16",
-    "build": 20,
+    "version": "2.1.17",
+    "build": 21,
     "release_date": "2026-10-02",
-    "release_notes": "Sửa lỗi bấm Chạy clone mở Zalo gốc rồi tắt; không còn phải đặt lại keychain mỗi lần mở clone; không tự mở trình duyệt khi khởi động trên macOS 15.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.16/ZaloMulti-2.1.16-Universal.dmg",
-    "download_size": 1909449,
+    "release_notes": "Sửa lỗi không gõ được tên/số điện thoại khi thêm tài khoản; chạy clone không còn làm Zalo gốc đăng xuất hay đòi tạo lại khoá; tự sửa lỗi Zalo gốc không mở được; clone không còn thoát đột ngột khi có tin nhắn mới.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.17/ZaloMulti-2.1.17-Universal.dmg",
+    "download_size": 1975417,
     "min_os_version": "14.0",
     "mandatory": true
 }

@@ -165,19 +165,24 @@ final class ZaloCloneEngine: ObservableObject {
         for subdir in subdirs {
             try fm.createDirectory(atPath: "\(dataPath)/\(subdir)", withIntermediateDirectories: true)
         }
-        linkKeychains(dataPath: dataPath)
+        isolateKeychains(dataPath: dataPath)
     }
 
-    /// CFFIXED_USER_HOME làm Security tìm keychain trong home của clone → macOS đòi
-    /// tạo/đặt lại keychain mỗi lần mở. Trỏ Library/Keychains về keychain thật của user.
-    nonisolated static func linkKeychains(dataPath: String) {
+    /// Clone KHÔNG được đụng keychain THẬT của máy. Bản 2.1.16 từng symlink
+    /// Library/Keychains của clone → keychain thật để tránh phiền "đặt lại khoá";
+    /// nhưng kết hợp CFFIXED_USER_HOME, macOS coi login keychain sai bối cảnh và
+    /// RESET nó (login.keychain-db → login_renamed_N) → Zalo gốc + mọi app đăng xuất,
+    /// phải tạo lại khoá. Nay: gỡ symlink cũ (nếu có), cho clone thư mục keychain
+    /// riêng rỗng. Khi chạy dùng cờ --use-mock-keychain để Electron không đụng
+    /// keychain hệ thống (xem ProcessManager.launchClone).
+    nonisolated static func isolateKeychains(dataPath: String) {
         let fm = FileManager.default
         let link = "\(dataPath)/Library/Keychains"
-        let target = "\(NSHomeDirectory())/Library/Keychains"
-        if (try? fm.destinationOfSymbolicLink(atPath: link)) == target { return }
-        try? fm.createDirectory(atPath: "\(dataPath)/Library", withIntermediateDirectories: true)
-        try? fm.removeItem(atPath: link)
-        try? fm.createSymbolicLink(atPath: link, withDestinationPath: target)
+        // Gỡ symlink độc hại do bản 2.1.16 để lại (trỏ vào keychain thật).
+        if (try? fm.destinationOfSymbolicLink(atPath: link)) != nil {
+            try? fm.removeItem(atPath: link)
+        }
+        try? fm.createDirectory(atPath: link, withIntermediateDirectories: true)
     }
     
     private nonisolated static func forceRemove(_ path: String) {

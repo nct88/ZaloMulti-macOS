@@ -64,22 +64,26 @@ struct SocialLinksView: View {
         SocialItem(name: "Zalo", urlAccessor: { SecureConfig.socialZalo },
                    imageName: "logo-zalo", systemIcon: nil, iconColor: nil, bgColor: nil),
         SocialItem(name: "Ủng hộ tác giả", urlAccessor: { SecureConfig.socialDonate },
-                   imageName: "logo-donate", systemIcon: nil, iconColor: nil, bgColor: nil)
+                   imageName: "logo-donate", systemIcon: nil, iconColor: nil, bgColor: nil),
+        SocialItem(name: "Email", urlAccessor: { "mailto:\(SecureConfig.contactEmail)" },
+                   imageName: "", systemIcon: "envelope.fill", iconColor: .white, bgColor: Color(hex: "#5E5CE6")),
+        SocialItem(name: "Hotline", urlAccessor: { "tel:\(SecureConfig.contactPhone)" },
+                   imageName: "", systemIcon: "phone.fill", iconColor: .white, bgColor: Color(hex: "#34C759"))
     ]
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ForEach(items.indices, id: \.self) { index in
                 let item = items[index]
                 if let url = URL(string: item.urlAccessor()) {
                     Link(destination: url) {
                         if let systemIcon = item.systemIcon {
                             Image(systemName: systemIcon)
-                                .font(.system(size: 13))
+                                .font(.system(size: 11))
                                 .foregroundColor(item.iconColor ?? .white)
-                                .frame(width: 28, height: 28)
+                                .frame(width: 22, height: 22)
                                 .background(item.bgColor ?? .clear)
-                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
                         } else {
                             Image(item.imageName)
                                 .renderingMode(.original)
@@ -87,8 +91,8 @@ struct SocialLinksView: View {
                                 .interpolation(.high)
                                 .antialiased(true)
                                 .aspectRatio(contentMode: .fill)
-                                .frame(width: 28, height: 28)
-                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                                .frame(width: 22, height: 22)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
                         }
                     }
                     .buttonStyle(.plain)

@@ -2,78 +2,42 @@
 // ZaloMulti
 //
 // Form thêm clone trong cùng cửa sổ SwiftUI (không NSWindow riêng).
+// v2.1.17 — dùng TextField thuần SwiftUI + @FocusState thay cho NSTextField nhúng.
+//   Overlay trong ZStack bị SwiftUI dựng lại nhiều lần khiến NSTextField mất
+//   first responder (log chẩn đoán: focus ok=true lúc mở nhưng sau đó
+//   firstResponder=AppKitWindow, không có keyDown nào tới ô nhập).
 
 import SwiftUI
-import AppKit
 
 @MainActor
-final class AddCloneFormState: NSObject, ObservableObject, NSTextFieldDelegate {
+final class AddCloneFormState: ObservableObject {
+    @Published var name = ""
+    @Published var phone = ""
     @Published var isCreating = false
     @Published var errorMessage: String?
-    
-    let nameField = NSTextField(string: "")
-    let phoneField = NSTextField(string: "")
-    
-    var trimmedName: String {
-        nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    var trimmedPhone: String {
-        phoneField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    override init() {
-        super.init()
-        configure(nameField, placeholder: "VD: Business, Shop Online...")
-        configure(phoneField, placeholder: "0901234567")
-        nameField.delegate = self
-        phoneField.delegate = self
-    }
-    
-    private func configure(_ field: NSTextField, placeholder: String) {
-        field.placeholderString = placeholder
-        field.isBordered = true
-        field.isBezeled = true
-        field.bezelStyle = .roundedBezel
-        field.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
-        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    }
-    
-    func setEnabled(_ enabled: Bool) {
-        nameField.isEnabled = enabled
-        phoneField.isEnabled = enabled
-        nameField.isEditable = enabled
-        phoneField.isEditable = enabled
-    }
-    
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
-        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            if control === nameField {
-                nameField.window?.makeFirstResponder(phoneField)
-            }
-            return true
-        }
-        return false
-    }
-}
 
-private struct HostedTextField: NSViewRepresentable {
-    let field: NSTextField
-    func makeNSView(context: Context) -> NSTextField { field }
-    func updateNSView(_ nsView: NSTextField, context: Context) {}
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedPhone: String {
+        phone.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 struct AddCloneView: View {
     @ObservedObject var store: CloneStore
     @ObservedObject var engine: ZaloCloneEngine
     @StateObject private var form = AddCloneFormState()
-    
+
+    private enum Field { case name, phone }
+    @FocusState private var focusedField: Field?
+
     init(store: CloneStore) {
         self.store = store
         self.engine = store.engine
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
@@ -83,17 +47,23 @@ struct AddCloneView: View {
                             Text("Tên hiển thị")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            HostedTextField(field: form.nameField)
-                                .frame(maxWidth: .infinity, minHeight: 24)
+                            TextField("VD: Business, Shop Online...", text: $form.name)
+                                .textFieldStyle(.roundedBorder)
+                                .focused($focusedField, equals: .name)
+                                .disabled(form.isCreating)
+                                .onSubmit { focusedField = .phone }
                         }
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Số điện thoại")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            HostedTextField(field: form.phoneField)
-                                .frame(maxWidth: .infinity, minHeight: 24)
+                            TextField("0901234567", text: $form.phone)
+                                .textFieldStyle(.roundedBorder)
+                                .focused($focusedField, equals: .phone)
+                                .disabled(form.isCreating)
+                                .onSubmit { createClone() }
                         }
-                        
+
                         if form.isCreating {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(spacing: 8) {
@@ -108,7 +78,7 @@ struct AddCloneView: View {
                                     .progressViewStyle(.linear)
                             }
                         }
-                        
+
                         if let error = form.errorMessage {
                             Text(error)
                                 .font(.caption)
@@ -120,24 +90,27 @@ struct AddCloneView: View {
                 }
             }
             .padding(16)
-            
+
             Spacer(minLength: 0)
-            
+
             Divider()
-            
+
             HStack {
                 Spacer()
                 Button("Huỷ") {
+                    DiagnosticLogger.info("UI", "AddClone: bấm Huỷ isCreating=\(form.isCreating)")
                     guard !form.isCreating else { return }
                     store.showAddCloneSheet = false
                 }
                 .keyboardShortcut(.escape)
                 .disabled(form.isCreating)
-                
+
                 Button("Tạo Clone") {
+                    DiagnosticLogger.info("UI", "AddClone: bấm Tạo Clone")
                     createClone()
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
                 .disabled(form.isCreating)
             }
             .padding()
@@ -150,12 +123,30 @@ struct AddCloneView: View {
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
         .onAppear {
-            DispatchQueue.main.async {
-                form.nameField.window?.makeFirstResponder(form.nameField)
+            DiagnosticLogger.info("UI", "AddCloneView onAppear")
+            // Đặt focus sau khi view vào cây hiển thị. @FocusState bền với
+            // việc SwiftUI dựng lại view, khác NSTextField trước đây.
+            DispatchQueue.main.async { focusedField = .name }
+        }
+        .onChange(of: focusedField) { _, newValue in
+            DiagnosticLogger.info("UI", "AddCloneView focusedField=\(String(describing: newValue))")
+            if let w = NSApp.keyWindow {
+                DiagnosticLogger.info("UI", "keyWindow=\(type(of: w)) '\(w.title)' firstResponder=\(w.firstResponder.map { String(describing: type(of: $0)) } ?? "nil")")
+            } else {
+                DiagnosticLogger.info("UI", "keyWindow=nil")
             }
         }
+        .onChange(of: form.name) { _, v in
+            DiagnosticLogger.info("UI", "form.name → '\(v)'")
+        }
+        .onChange(of: form.phone) { _, v in
+            DiagnosticLogger.info("UI", "form.phone → '\(v)'")
+        }
+        .onDisappear {
+            DiagnosticLogger.info("UI", "AddCloneView onDisappear")
+        }
     }
-    
+
     private var progressValue: Double {
         let msg = engine.progressMessage
         if msg.contains("chuẩn bị") { return 0.08 }
@@ -169,12 +160,15 @@ struct AddCloneView: View {
         if msg.contains("Hoàn thành") { return 1 }
         return 0.05
     }
-    
+
     private func createClone() {
         if form.isCreating { return }
+        focusedField = nil
         let name = form.trimmedName
+        DiagnosticLogger.info("CREATE", "createClone nameLen=\(name.count) canAddMore=\(store.canAddMore) engineBusy=\(store.engine.isProcessing)")
         guard !name.isEmpty else {
             form.errorMessage = "Nhập tên hiển thị trước khi tạo clone."
+            focusedField = .name
             return
         }
         guard store.canAddMore else {
@@ -185,12 +179,11 @@ struct AddCloneView: View {
             form.errorMessage = "Đang tạo clone — vui lòng chờ."
             return
         }
-        
+
         DiagnosticLogger.info("CREATE", "Form submit name='\(name)' phone='\(form.trimmedPhone)'")
         form.isCreating = true
         form.errorMessage = nil
-        form.setEnabled(false)
-        
+
         Task { @MainActor in
             do {
                 let nextIndex = (store.clones.map(\.cloneIndex).max() ?? 0) + 1
@@ -204,7 +197,6 @@ struct AddCloneView: View {
             } catch {
                 DiagnosticLogger.error("CREATE", "Lỗi tạo clone: \(error.localizedDescription)")
                 form.isCreating = false
-                form.setEnabled(true)
                 form.errorMessage = error.localizedDescription
             }
         }

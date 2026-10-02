@@ -21,18 +21,20 @@ final class CloneStore: ObservableObject {
     
     // MARK: - Published Properties
     @Published var clones: [CloneAccount] = []
-    @Published var listRevision: UInt64 = 0
-    @Published var showAddCloneSheet = false
+    @Published var showAddCloneSheet = false {
+        didSet {
+            guard oldValue != showAddCloneSheet else { return }
+            DiagnosticLogger.info("STORE", "showAddCloneSheet \(oldValue) → \(showAddCloneSheet)")
+        }
+    }
     @Published var errorMessage: String?
     @Published var showError = false
     
     /// Kiểm tra còn slot trống không (tối đa 4 tài khoản)
     var canAddMore: Bool { clones.count < Self.maxClones }
     
-    static let listDidChange = Notification.Name("ZaloMulti.cloneListDidChange")
-    
-    func openAddClone() {
-        DiagnosticLogger.info("STORE", "openAddClone canAddMore=\(canAddMore) count=\(clones.count)")
+    func openAddClone(source: String = "unknown") {
+        DiagnosticLogger.info("STORE", "openAddClone source=\(source) canAddMore=\(canAddMore) count=\(clones.count) sheetShown=\(showAddCloneSheet)")
         guard canAddMore else {
             errorMessage = "Đã đạt giới hạn tối đa \(Self.maxClones) tài khoản."
             showError = true
@@ -105,10 +107,8 @@ final class CloneStore: ObservableObject {
             next.append(clone)
         }
         clones = next
-        listRevision += 1
         saveClones()
-        NotificationCenter.default.post(name: Self.listDidChange, object: nil)
-        DiagnosticLogger.success("STORE", "Clone '\(clone.name)' đã thêm (total=\(clones.count) rev=\(listRevision))")
+        DiagnosticLogger.success("STORE", "Clone '\(clone.name)' đã thêm (total=\(clones.count))")
     }
     
     /// Cập nhật thông tin clone
@@ -130,10 +130,8 @@ final class CloneStore: ObservableObject {
         do {
             try engine.deleteClone(clone)
             clones = clones.filter { $0.id != clone.id }
-            listRevision += 1
             saveClones()
-            NotificationCenter.default.post(name: Self.listDidChange, object: nil)
-            DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách — còn \(clones.count) rev=\(listRevision)")
+            DiagnosticLogger.success("STORE", "Đã xoá '\(clone.name)' khỏi danh sách — còn \(clones.count)")
         } catch {
             errorMessage = "Lỗi xoá files: \(error.localizedDescription)"
             showError = true

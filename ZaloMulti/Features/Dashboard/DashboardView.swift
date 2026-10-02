@@ -8,7 +8,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var store: CloneStore = CloneStore.shared
-    var onAddClone: () -> Void = { CloneStore.shared.showAddCloneSheet = true }
+    var onAddClone: () -> Void = { CloneStore.shared.openAddClone(source: "dashboard-default") }
     
     let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -65,12 +65,10 @@ struct DashboardView: View {
                     MaxClonesReachedView()
                 }
             }
-            .id(store.listRevision)
-            .animation(.easeInOut(duration: 0.2), value: store.listRevision)
+            .animation(.easeInOut(duration: 0.2), value: store.clones.count)
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
-        .onReceive(NotificationCenter.default.publisher(for: CloneStore.listDidChange)) { _ in }
     }
 }
 
@@ -80,7 +78,10 @@ struct AddCloneCardView: View {
     var action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            DiagnosticLogger.info("UI", "AddCloneCard tapped")
+            action()
+        }) {
             VStack(spacing: 8) {
                 ZStack {
                     Circle()
@@ -116,6 +117,9 @@ struct AddCloneCardView: View {
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering
+            if DiagnosticTracer.isEnabled {
+                DiagnosticLogger.info("UI", "AddCloneCard hover=\(hovering)")
+            }
             if hovering {
                 NSCursor.pointingHand.push()
             } else {

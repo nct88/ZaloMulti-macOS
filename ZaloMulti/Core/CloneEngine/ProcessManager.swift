@@ -43,7 +43,7 @@ final class ProcessManager: ObservableObject {
         try? fm.createDirectory(atPath: "\(clone.dataPath)/Library/Preferences", withIntermediateDirectories: true)
         try? fm.createDirectory(atPath: "\(clone.dataPath)/Documents", withIntermediateDirectories: true)
         
-        ZaloCloneEngine.linkKeychains(dataPath: clone.dataPath)
+        ZaloCloneEngine.isolateKeychains(dataPath: clone.dataPath)
         
         // Tạo internal symlink nếu Zalo cần đọc cả 2 path bên trong clone data
         if !fm.fileExists(atPath: "\(cloneRootZaloData)/Partitions") && fm.fileExists(atPath: "\(cloneZaloDataDir)/Partitions") {
@@ -65,7 +65,10 @@ final class ProcessManager: ObservableObject {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: actualBinary)
         process.currentDirectoryURL = URL(fileURLWithPath: clone.dataPath)
-        
+        // --use-mock-keychain: Electron/Chromium KHÔNG dùng keychain hệ thống của máy.
+        // Bắt buộc để clone không làm reset login keychain thật (→ Zalo gốc đăng xuất).
+        process.arguments = ["--use-mock-keychain"]
+
         // Cấu hình môi trường cách ly 100% cho từng clone
         var env = ProcessInfo.processInfo.environment
         env["HOME"] = clone.dataPath

@@ -6,42 +6,33 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var cloneStore: CloneStore
     @State private var showSidebar = true
-    @State private var listTick = 0
-    
+
     var body: some View {
-        ZStack {
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    NotificationBarView()
-                    DashboardView(store: cloneStore, onAddClone: { cloneStore.showAddCloneSheet = true })
-                }
-                .frame(maxWidth: .infinity)
-                
-                if showSidebar {
-                    Rectangle()
-                        .fill(Color(nsColor: .separatorColor))
-                        .frame(width: 1)
-                    
-                    SidebarView(store: cloneStore)
-                        .frame(width: 240)
-                }
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                NotificationBarView()
+                DashboardView(store: cloneStore, onAddClone: { cloneStore.openAddClone(source: "dashboard-card") })
             }
-            .id(listTick)
-            
-            if cloneStore.showAddCloneSheet {
-                Color.black.opacity(0.35)
-                    .ignoresSafeArea()
-                
-                AddCloneView(store: cloneStore)
+            .frame(maxWidth: .infinity)
+
+            if showSidebar {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1)
+
+                SidebarView(store: cloneStore)
+                    .frame(width: 240)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: CloneStore.listDidChange)) { _ in
-            listTick += 1
+        // Form dùng .sheet (chuẩn macOS) — sheet tự trở thành key window và quản lý
+        // first responder, nên TextField nhận bàn phím. Overlay ZStack cũ không làm được.
+        .sheet(isPresented: $cloneStore.showAddCloneSheet) {
+            AddCloneView(store: cloneStore)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    cloneStore.showAddCloneSheet = true
+                    cloneStore.openAddClone(source: "toolbar")
                 } label: {
                     Label("Thêm tài khoản", systemImage: "plus")
                 }

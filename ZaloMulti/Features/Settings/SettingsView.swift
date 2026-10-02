@@ -38,6 +38,11 @@ struct LogSettingsView: View {
                     .font(.headline)
                 Spacer()
                 
+                Button("Xuất log ra Desktop") {
+                    DiagnosticTracer.exportReport(store: CloneStore.shared)
+                }
+                .buttonStyle(.bordered)
+                
                 Button("Mở trong Finder") {
                     DiagnosticLogger.openLogInFinder()
                 }

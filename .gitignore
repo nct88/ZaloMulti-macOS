@@ -34,3 +34,8 @@ generate_encrypted.swift
 .gemini/
 *.xcuserstate
 release/*.dmg
+
+# Build artifacts
+dist/
+dist-diag/
+default.profraw

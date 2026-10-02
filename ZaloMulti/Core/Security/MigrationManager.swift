@@ -200,24 +200,26 @@ final class MigrationManager {
             }
         }
         
-        // Phục hồi ZaloData gốc nếu trước đó bị symlink sang clone/zDeskPro
+        // Phục hồi ZaloData gốc nếu bản cũ (zDeskPro) từng thay nó bằng symlink.
+        // QUAN TRỌNG: fileExists() đi theo symlink → trả false với symlink GÃY,
+        // nên bản cũ bỏ sót link gãy và Zalo gốc crash (ENOENT mkdir ZaloData).
+        // Dùng destinationOfSymbolicLink để nhận ra link kể cả khi đã gãy.
         let home = NSHomeDirectory()
         let defaultZaloData = "\(home)/Library/Application Support/ZaloData"
         let backupZaloData = "\(home)/Library/Application Support/ZaloData.original"
-        
-        if fm.fileExists(atPath: defaultZaloData) {
-            let attrs = try? fm.attributesOfItem(atPath: defaultZaloData)
-            let isSymlink = attrs?[.type] as? FileAttributeType == .typeSymbolicLink
-            if isSymlink {
-                try? fm.removeItem(atPath: defaultZaloData)
-                if fm.fileExists(atPath: backupZaloData) {
-                    try? fm.moveItem(atPath: backupZaloData, toPath: defaultZaloData)
-                    DiagnosticLogger.info("MIGRATE", "Đã phục hồi ZaloData gốc từ ZaloData.original")
-                }
+
+        if (try? fm.destinationOfSymbolicLink(atPath: defaultZaloData)) != nil {
+            // Là symlink (có thể đã gãy) → gỡ link. removeItem chỉ xoá link, không xoá đích.
+            try? fm.removeItem(atPath: defaultZaloData)
+            if fm.fileExists(atPath: backupZaloData) {
+                try? fm.moveItem(atPath: backupZaloData, toPath: defaultZaloData)
+                DiagnosticLogger.success("MIGRATE", "Gỡ symlink ZaloData gãy + phục hồi từ ZaloData.original")
+            } else {
+                DiagnosticLogger.success("MIGRATE", "Gỡ symlink ZaloData gãy — Zalo gốc sẽ tự tạo lại")
             }
-        } else if fm.fileExists(atPath: backupZaloData) {
+        } else if !fm.fileExists(atPath: defaultZaloData), fm.fileExists(atPath: backupZaloData) {
             try? fm.moveItem(atPath: backupZaloData, toPath: defaultZaloData)
-            DiagnosticLogger.info("MIGRATE", "Đã phục hồi ZaloData gốc từ ZaloData.original")
+            DiagnosticLogger.success("MIGRATE", "Phục hồi ZaloData gốc từ ZaloData.original")
         }
     }
 }

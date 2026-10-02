@@ -109,7 +109,9 @@ final class NotificationMonitor: ObservableObject {
             queue: DispatchQueue.global(qos: .utility)
         )
         
-        source.setEventHandler { [weak self] in
+        // @Sendable: handler chạy trên queue utility. Không có nó, Swift 6 coi closure
+        // là @MainActor (tạo trong class @MainActor) và trap khi kqueue báo sự kiện.
+        source.setEventHandler { @Sendable [weak self] in
             Task { @MainActor [weak self] in
                 self?.handleFileChange(cloneIndex: cloneIndex)
             }

@@ -2,11 +2,18 @@
 # build-dist.sh — Build script tạo phiên bản đóng gói cho tất cả chip Apple
 # Sử dụng: bash build-dist.sh
 
+# Bản chẩn đoán: bash build-dist.sh --diag  → dist-diag/, bật ghi log chi tiết (ZM_DIAG)
+
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 DIST_DIR="$PROJECT_DIR/dist"
+EXTRA_CONDITIONS=""
+if [ "$1" = "--diag" ]; then
+    DIST_DIR="$PROJECT_DIR/dist-diag"
+    EXTRA_CONDITIONS="ZM_DIAG"
+fi
 PROJECT="$PROJECT_DIR/ZaloMulti.xcodeproj"
 SCHEME="ZaloMulti"
 VERSION=$(grep -m1 "MARKETING_VERSION" "$PROJECT/project.pbxproj" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]*' | head -1)
@@ -19,7 +26,7 @@ echo "╚═══════════════════════�
 # Cleanup
 echo ""
 echo "▸ Dọn dẹp..."
-pkill -f ZaloMulti 2>/dev/null || true
+pkill -x ZaloMulti 2>/dev/null || true
 pkill -9 -f xcodebuild 2>/dev/null || true
 sleep 1
 rm -rf "$DIST_DIR"
@@ -42,6 +49,7 @@ build_arch() {
         ONLY_ACTIVE_ARCH=NO \
         SWIFT_OPTIMIZATION_LEVEL="-O" \
         GCC_OPTIMIZATION_LEVEL=s \
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS="\$(inherited) $EXTRA_CONDITIONS" \
         SYMROOT="$BUILD_DIR" \
         OBJROOT="$BUILD_DIR/obj" \
         -derivedDataPath "$BUILD_DIR/derived" \
