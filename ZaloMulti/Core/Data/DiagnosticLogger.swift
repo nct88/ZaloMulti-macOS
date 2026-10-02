@@ -1,59 +1,45 @@
-// DiagnosticLogger.swift
-// ZaloMulti
-//
-// Hệ thống ghi log chi tiết cho toàn bộ ứng dụng.
-// Log file: ~/Library/Logs/ZaloMulti/zcm.log
-//
-// Rebuild v2.1 — lazy init, không phụ thuộc SecureConfig khi khởi tạo.
-
 import Foundation
 import AppKit
 import os.log
 
-/// Logger trung tâm — ghi ra cả Console (os_log) và file
 final class DiagnosticLogger: @unchecked Sendable {
-    
-    // MARK: - Singleton
+
     static let shared = DiagnosticLogger()
-    
-    // MARK: - Log File Path
+
     static let logDirectory = "\(NSHomeDirectory())/Library/Logs/ZaloMulti"
     static let logFilePath = "\(logDirectory)/zcm.log"
-    static let maxLogSize: UInt64 = 5 * 1024 * 1024  // 5 MB max
-    
-    // Lazy os_log — không gọi SecureConfig trong init
+    static let maxLogSize: UInt64 = 5 * 1024 * 1024
+
     private lazy var osLog: Logger = {
         let subsystem = SecureConfig.logSubsystem.isEmpty
             ? "com.zalomulti.app"
             : SecureConfig.logSubsystem
         return Logger(subsystem: subsystem, category: "App")
     }()
-    
+
     private let fileHandle: FileHandle?
     private let dateFormatter: DateFormatter
     private let queue = DispatchQueue(label: "com.zcm.logger", qos: .utility)
-    
-    // MARK: - Init
-    
+
     private init() {
         dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        
+
         let fm = FileManager.default
         try? fm.createDirectory(atPath: Self.logDirectory, withIntermediateDirectories: true)
         Self.rotateIfNeeded()
-        
+
         if !fm.fileExists(atPath: Self.logFilePath) {
             fm.createFile(atPath: Self.logFilePath, contents: nil)
         }
-        
+
         fileHandle = FileHandle(forWritingAtPath: Self.logFilePath)
         fileHandle?.seekToEndOfFile()
-        
+
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.1.0"
         writeRaw("""
-        
+
         ════════════════════════════════════════════════════════════════
         ║  ZaloMulti v\(version) — Session Started
         ║  \(dateFormatter.string(from: Date()))
@@ -61,29 +47,27 @@ final class DiagnosticLogger: @unchecked Sendable {
         ║  Host: \(HostEnvironment.description)
         ║  Log file: \(Self.logFilePath)
         ════════════════════════════════════════════════════════════════
-        
+
         """)
     }
-    
+
     deinit {
         writeRaw("\n═══ Session Ended: \(dateFormatter.string(from: Date())) ═══\n")
         fileHandle?.closeFile()
     }
-    
-    // MARK: - Public API
-    
+
     static func info(_ tag: String, _ message: String, file: String = #file, line: Int = #line) {
         shared.log(level: .info, tag: tag, message: message, file: file, line: line)
     }
-    
+
     static func success(_ tag: String, _ message: String, file: String = #file, line: Int = #line) {
         shared.log(level: .success, tag: tag, message: message, file: file, line: line)
     }
-    
+
     static func warning(_ tag: String, _ message: String, file: String = #file, line: Int = #line) {
         shared.log(level: .warning, tag: tag, message: message, file: file, line: line)
     }
-    
+
     static func error(_ tag: String, _ message: String, error: Error? = nil, file: String = #file, line: Int = #line) {
         var fullMessage = message
         if let err = error {
@@ -91,34 +75,32 @@ final class DiagnosticLogger: @unchecked Sendable {
         }
         shared.log(level: .error, tag: tag, message: fullMessage, file: file, line: line)
     }
-    
+
     static func debug(_ tag: String, _ message: String, file: String = #file, line: Int = #line) {
         #if DEBUG
         shared.log(level: .debug, tag: tag, message: message, file: file, line: line)
         #endif
     }
-    
+
     static func measure(_ tag: String, _ operation: String, block: () throws -> Void) rethrows {
         let start = CFAbsoluteTimeGetCurrent()
         try block()
         let elapsed = (CFAbsoluteTimeGetCurrent() - start) * 1000
         info(tag, "\(operation) — \(String(format: "%.1f", elapsed))ms")
     }
-    
+
     static func readLogContents() -> String {
-        // Đọc lossy: crash giữa lúc ghi có thể để lại byte UTF-8 dở dang
+
         guard let data = FileManager.default.contents(atPath: logFilePath) else {
             return "(Không thể đọc file log)"
         }
         return String(decoding: data, as: UTF8.self)
     }
-    
+
     static func openLogInFinder() {
         NSWorkspace.shared.selectFile(logFilePath, inFileViewerRootedAtPath: logDirectory)
     }
-    
-    // MARK: - Private
-    
+
     private enum LogLevel: String {
         case info    = "INFO"
         case success = " OK "
@@ -126,16 +108,16 @@ final class DiagnosticLogger: @unchecked Sendable {
         case error   = "ERR!"
         case debug   = "DBUG"
     }
-    
+
     private func log(level: LogLevel, tag: String, message: String, file: String, line: Int) {
         let timestamp = dateFormatter.string(from: Date())
         let fileName = (file as NSString).lastPathComponent
         let logLine = "[\(timestamp)] [\(level.rawValue)] [\(tag)] \(message)  ← \(fileName):\(line)\n"
-        
+
         queue.async { [weak self] in
             self?.writeRaw(logLine)
         }
-        
+
         switch level {
         case .info:    osLog.info("[\(tag)] \(message)")
         case .success: osLog.info("✅ [\(tag)] \(message)")
@@ -144,44 +126,34 @@ final class DiagnosticLogger: @unchecked Sendable {
         case .debug:   osLog.debug("🔍 [\(tag)] \(message)")
         }
     }
-    
+
     fileprivate func flushQueue() {
         queue.sync {}
     }
-    
+
     private func writeRaw(_ text: String) {
         guard let data = text.data(using: .utf8) else { return }
         fileHandle?.write(data)
     }
-    
-    // MARK: - Log Rotation
-    
+
     private static func rotateIfNeeded() {
         let fm = FileManager.default
         guard let attrs = try? fm.attributesOfItem(atPath: logFilePath),
               let size = attrs[.size] as? UInt64,
               size > maxLogSize else { return }
-        
+
         let backupPath = logFilePath + ".old"
         try? fm.removeItem(atPath: backupPath)
         try? fm.moveItem(atPath: logFilePath, toPath: backupPath)
     }
 }
 
-// MARK: - Flush
-
 extension DiagnosticLogger {
-    /// Chờ ghi hết log đang xếp hàng xuống file.
+
     static func flush() {
         shared.flushQueue()
     }
 }
-
-// MARK: - Diagnostic Tracer
-//
-// Bật khi build với cờ ZM_DIAG (bash build-dist.sh --diag) hoặc
-// `defaults write <bundle-id> ZMDiagnosticMode -bool YES`.
-// Ghi mọi click/phím, view nhận click, trạng thái cửa sổ và form "Thêm tài khoản".
 
 @MainActor
 enum DiagnosticTracer {
@@ -201,9 +173,6 @@ enum DiagnosticTracer {
         DiagnosticLogger.warning("DIAG", "Chế độ chẩn đoán BẬT — ghi mọi thao tác chuột/phím")
         logEnvironment()
 
-        // CHỈ giám sát chuột. KHÔNG giám sát .keyDown: local monitor cho keyDown
-        // làm chặn nhập liệu vào TextField (đã kiểm chứng: bản diag không gõ được,
-        // bản thường gõ bình thường). Nội dung ô nhập được theo dõi qua onChange.
         eventMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .leftMouseUp, .rightMouseDown]
         ) { event in
@@ -231,8 +200,6 @@ enum DiagnosticTracer {
             })
         }
     }
-
-    // MARK: Logging
 
     private static func logEvent(_ event: NSEvent) {
         let kind: String
@@ -276,9 +243,6 @@ enum DiagnosticTracer {
         }
     }
 
-    // MARK: Report
-
-    /// Ghi snapshot trạng thái app, rồi xuất log + thông tin máy ra Desktop.
     static func exportReport(store: CloneStore) {
         snapshot(store: store, reason: "export")
         DiagnosticLogger.flush()
@@ -352,15 +316,12 @@ enum DiagnosticTracer {
         }
     }
 
-    /// Ghi trạng thái hiện tại của store + toàn bộ cửa sổ.
     static func snapshot(store: CloneStore, reason: String) {
         DiagnosticLogger.info("SNAP", "[\(reason)] clones=\(store.clones.count) canAddMore=\(store.canAddMore) showAddCloneSheet=\(store.showAddCloneSheet) engineBusy=\(store.engine.isProcessing) appActive=\(NSApp.isActive)")
         for w in NSApp.windows {
             DiagnosticLogger.info("SNAP", "  window \(describe(w)) firstResponder=\(w.firstResponder.map { String(describing: type(of: $0)) } ?? "nil")")
         }
     }
-
-    // MARK: Helpers
 
     static func describe(_ w: NSWindow) -> String {
         "#\(w.windowNumber) '\(w.title)' \(type(of: w)) frame=\(fmt(w.frame)) key=\(w.isKeyWindow) main=\(w.isMainWindow) visible=\(w.isVisible) level=\(w.level.rawValue) alpha=\(w.alphaValue) ignoresMouse=\(w.ignoresMouseEvents) sheet=\(w.attachedSheet != nil) modal=\(NSApp.modalWindow === w)"

@@ -1,12 +1,7 @@
-// NotificationBarView.swift
-// ZaloMulti
-//
-// Thanh thông báo Zalo source status
-
 import SwiftUI
 
 struct NotificationBarView: View {
-    // Detect trực tiếp — không dùng @State để tránh bị reset khi view recreate
+
     private var zaloInfo: (installed: Bool, version: String?, bundleID: String?) {
         let fm = FileManager.default
         let path = "/Applications/Zalo.app"
@@ -21,39 +16,37 @@ struct NotificationBarView: View {
         }
         return (true, nil, nil)
     }
-    
+
     var body: some View {
         let installed = zaloInfo.installed
         let version = zaloInfo.version
-        
+
         HStack(spacing: 12) {
-            // Icon
+
             ZStack {
                 Circle()
                     .fill(installed ? Color.green : Color.orange)
                     .frame(width: 28, height: 28)
-                
+
                 Image(systemName: installed ? "checkmark" : "exclamationmark")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
             }
-            
-            // Text
+
             VStack(alignment: .leading, spacing: 1) {
                 Text(installed ? "Zalo Desktop đã sẵn sàng" : "Chưa cài Zalo Desktop")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
-                
+
                 Text(installed
                      ? "Phiên bản \(version ?? "N/A") — Sẵn sàng tạo clone"
                      : "Cài Zalo từ zalo.me/pc để bắt đầu")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
-            
+
             Spacer()
-            
-            // Version badge
+
             if let version = version {
                 Text("v\(version)")
                     .font(.system(size: 12, weight: .medium))

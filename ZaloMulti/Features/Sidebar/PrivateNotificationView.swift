@@ -1,31 +1,24 @@
-// PrivateNotificationView.swift
-// ZaloMulti
-//
-// Hiển thị danh sách thông báo tin nhắn riêng tư trong sidebar.
-// Thay thế macOS system notifications để bảo vệ quyền riêng tư.
-
 import SwiftUI
 
-// MARK: - Notification List (Sidebar)
 struct PrivateNotificationListView: View {
     @ObservedObject var monitor = NotificationMonitor.shared
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+
             HStack(spacing: 6) {
                 Image(systemName: "bell.badge.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
                     .symbolEffect(.pulse, isActive: monitor.unreadCount > 0)
-                
+
                 Text("THÔNG BÁO")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
                     .tracking(0.5)
-                
+
                 Spacer()
-                
+
                 if monitor.unreadCount > 0 {
                     Text("\(monitor.unreadCount)")
                         .font(.system(size: 10, weight: .bold))
@@ -36,8 +29,7 @@ struct PrivateNotificationListView: View {
                         .clipShape(Capsule())
                         .transition(.scale.combined(with: .opacity))
                 }
-                
-                // Menu actions
+
                 Menu {
                     Button(action: { monitor.markAllAsRead() }) {
                         Label("Đánh dấu tất cả đã đọc", systemImage: "checkmark.circle")
@@ -57,28 +49,27 @@ struct PrivateNotificationListView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            
+
             Divider()
-            
-            // Notification list
+
             if monitor.notifications.isEmpty {
-                // Empty state
+
                 VStack(spacing: 10) {
                     Spacer()
-                    
+
                     Image(systemName: "bell.slash")
                         .font(.system(size: 28))
                         .foregroundStyle(.quaternary)
-                    
+
                     Text("Chưa có thông báo")
                         .font(.system(size: 13))
                         .foregroundStyle(.tertiary)
-                    
+
                     Text("Tin nhắn từ các tài khoản\nsẽ hiển thị tại đây")
                         .font(.system(size: 11))
                         .foregroundStyle(.quaternary)
                         .multilineTextAlignment(.center)
-                    
+
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -88,7 +79,7 @@ struct PrivateNotificationListView: View {
                         ForEach(monitor.notifications) { notification in
                             NotificationRowView(notification: notification)
                                 .environmentObject(monitor)
-                            
+
                             Divider()
                                 .padding(.leading, 50)
                         }
@@ -99,49 +90,46 @@ struct PrivateNotificationListView: View {
     }
 }
 
-// MARK: - Single Notification Row (tap to expand)
 struct NotificationRowView: View {
     let notification: PrivateNotification
     @ObservedObject var monitor = NotificationMonitor.shared
     @State private var isHovered = false
     @State private var isExpanded = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Main row
+
             HStack(alignment: .top, spacing: 10) {
-                // Avatar với chữ cái đầu
+
                 ZStack {
                     Circle()
                         .fill(Color(hex: notification.avatarColor))
                         .frame(width: 32, height: 32)
-                    
+
                     Text(String(notification.title.prefix(1)).uppercased())
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
                 }
-                
-                // Nội dung
+
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text(notification.title)
                             .font(.system(size: 12, weight: notification.isRead ? .medium : .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
-                        
+
                         Spacer()
-                        
+
                         Text(notification.timeAgo)
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
-                    
+
                     Text(notification.body)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(isExpanded ? nil : 2)
-                    
-                    // Clone badge
+
                     HStack(spacing: 4) {
                         Circle()
                             .fill(Color(hex: notification.avatarColor))
@@ -149,17 +137,15 @@ struct NotificationRowView: View {
                         Text(notification.cloneName)
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.tertiary)
-                        
+
                         Spacer()
-                        
-                        // Expand/collapse indicator
+
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 8))
                             .foregroundStyle(.quaternary)
                     }
                 }
-                
-                // Unread indicator
+
                 if !notification.isRead {
                     Circle()
                         .fill(Color.accentColor)
@@ -169,32 +155,28 @@ struct NotificationRowView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            
-            // Expanded detail view
+
             if isExpanded {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
-                    
-                    // Full message
+
                     Text(notification.body)
                         .font(.system(size: 12))
                         .foregroundStyle(.primary)
                         .textSelection(.enabled)
                         .padding(.horizontal, 12)
-                    
-                    // Metadata
+
                     HStack(spacing: 12) {
                         Label(notification.cloneName, systemImage: "person.circle")
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
-                        
+
                         Label(notification.formattedTimestamp, systemImage: "clock")
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 12)
-                    
-                    // Actions
+
                     HStack(spacing: 8) {
                         Button {
                             monitor.markAsRead(notification)
@@ -205,7 +187,7 @@ struct NotificationRowView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                         .disabled(notification.isRead)
-                        
+
                         Button(role: .destructive) {
                             withAnimation {
                                 monitor.removeNotification(notification)
@@ -217,7 +199,7 @@ struct NotificationRowView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                         .tint(.red)
-                        
+
                         Spacer()
                     }
                     .padding(.horizontal, 12)

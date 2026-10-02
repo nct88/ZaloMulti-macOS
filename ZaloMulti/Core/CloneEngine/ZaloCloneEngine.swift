@@ -1,13 +1,7 @@
-// ZaloCloneEngine.swift
-// ZaloMulti
-//
-// Logic cốt lõi: detect Zalo gốc, copy bundle, đổi Bundle ID, re-sign.
-
 import Foundation
 import AppKit
 import Darwin
 
-/// Constants cho ZaloCloneEngine
 enum ZaloPaths {
     static let zaloSourcePath = "/Applications/Zalo.app"
     static let zaloDataBase = "\(NSHomeDirectory())/Library/Application Support/ZaloMulti"
@@ -17,39 +11,36 @@ enum ZaloPaths {
     static let originalRecvSocket = "/tmp/socketzalorecv2021"
 }
 
-/// Engine chính quản lý việc tạo và xoá Zalo clone
 @MainActor
 final class ZaloCloneEngine: ObservableObject {
-    
+
     @Published var isProcessing = false
     @Published var progressMessage = ""
-    
-    // MARK: - Detect Zalo Source
-    
+
     nonisolated func detectSourceZalo() -> (installed: Bool, version: String?, bundleID: String?) {
         let fm = FileManager.default
         guard fm.fileExists(atPath: ZaloPaths.zaloSourcePath) else {
             DiagnosticLogger.warning("DETECT", "Zalo KHÔNG tìm thấy tại \(ZaloPaths.zaloSourcePath)")
             return (false, nil, nil)
         }
-        
+
         let plistPath = "\(ZaloPaths.zaloSourcePath)/Contents/Info.plist"
         guard let plist = NSDictionary(contentsOfFile: plistPath) else {
             DiagnosticLogger.warning("DETECT", "Không đọc được Info.plist tại \(plistPath)")
             return (true, nil, nil)
         }
-        
+
         let version = plist["CFBundleShortVersionString"] as? String
         let bundleID = plist["CFBundleIdentifier"] as? String
-        
+
         DiagnosticLogger.info("DETECT", "Zalo OK — version=\(version ?? "?"), bundleID=\(bundleID ?? "?")")
         return (true, version, bundleID)
     }
-    
+
     nonisolated var sourceZaloVersion: String? {
         detectSourceZalo().version
     }
-    
+
     nonisolated var isElectronApp: Bool {
         let exists = FileManager.default.fileExists(
             atPath: "\(ZaloPaths.zaloSourcePath)/Contents/Resources/app.asar"
@@ -57,52 +48,50 @@ final class ZaloCloneEngine: ObservableObject {
         DiagnosticLogger.debug("DETECT", "Electron check: app.asar \(exists ? "tồn tại" : "KHÔNG tồn tại")")
         return exists
     }
-    
-    // MARK: - Create Clone
-    
+
     func createClone(index: Int, name: String, phone: String = "") async throws -> CloneAccount {
         let clonePath = "\(ZaloPaths.cloneAppBase)/ZaloClone\(index).app"
         let bundleID = "\(ZaloPaths.originalBundleID).clone\(index)"
         let dataPath = "\(ZaloPaths.zaloDataBase)/Data/clone\(index)"
-        
+
         DiagnosticLogger.info("CREATE", "Bắt đầu tạo clone #\(index): '\(name)'")
         DiagnosticLogger.info("CREATE", "Host: \(HostEnvironment.description) | OS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
         if HostEnvironment.isRunningUnderRosetta {
             DiagnosticLogger.warning("CREATE", "App đang chạy qua Rosetta trên Apple Silicon — bản Intel dễ lỗi form/ký mã")
         }
-        
+
         if isProcessing {
             throw CloneError.copyFailed("Đang tạo clone khác — chờ xong rồi thử lại")
         }
-        
+
         isProcessing = true
         progressMessage = "Đang chuẩn bị..."
-        
+
         do {
             progressMessage = "Tạo thư mục dữ liệu..."
             try await Task.detached { try Self.createDirectories(dataPath: dataPath) }.value
-            
+
             progressMessage = "Sao chép Zalo app..."
             try await Task.detached { try await Self.copyBundle(from: ZaloPaths.zaloSourcePath, to: clonePath) }.value
-            
+
             progressMessage = "Đổi Bundle Identifier..."
             try await Task.detached { try Self.modifyBundleID(appPath: clonePath, newBundleID: bundleID) }.value
-            
+
             progressMessage = "Đang vá Socket (app.asar)..."
             try await Task.detached { try Self.patchAsarSockets(appPath: clonePath, instanceIndex: index) }.value
-            
+
             progressMessage = "Gắn môi trường cách ly..."
             try await Task.detached { try Self.injectCloneEnvironment(appPath: clonePath, dataPath: dataPath) }.value
-            
+
             progressMessage = "Xoá quarantine..."
             try await Task.detached { try Self.removeQuarantine(appPath: clonePath) }.value
-            
+
             progressMessage = "Re-sign ứng dụng..."
             try await Task.detached { try await Self.resignApp(appPath: clonePath) }.value
-            
+
             isProcessing = false
             progressMessage = "Hoàn thành!"
-            
+
             let account = CloneAccount(
                 name: name,
                 phoneNumber: phone,
@@ -114,10 +103,10 @@ final class ZaloCloneEngine: ObservableObject {
                 avatarColor: CloneAccount.colorForIndex(index),
                 createdAt: Date()
             )
-            
+
             DiagnosticLogger.success("CREATE", "✅ Clone '\(name)' tạo thành công!")
             return account
-            
+
         } catch {
             isProcessing = false
             progressMessage = "Lỗi: \(error.localizedDescription)"
@@ -125,12 +114,10 @@ final class ZaloCloneEngine: ObservableObject {
             throw error
         }
     }
-    
-    // MARK: - Delete Clone
-    
+
     nonisolated func deleteClone(_ clone: CloneAccount) throws {
         DiagnosticLogger.info("DELETE", "Xoá clone '\(clone.name)' (index=\(clone.cloneIndex))")
-        
+
         let killer = Process()
         killer.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
         killer.arguments = ["-9", "-f", "ZaloClone\(clone.cloneIndex).app"]
@@ -138,18 +125,16 @@ final class ZaloCloneEngine: ObservableObject {
         killer.standardError = FileHandle.nullDevice
         try? killer.run()
         killer.waitUntilExit()
-        
+
         Self.forceRemove(clone.appPath)
         Self.forceRemove(clone.dataPath)
-        
+
         if FileManager.default.fileExists(atPath: clone.appPath) {
             throw CloneError.copyFailed("Không xoá được \(clone.appPath)")
         }
         DiagnosticLogger.success("DELETE", "Clone '\(clone.name)' đã xoá hoàn toàn")
     }
-    
-    // MARK: - Private Static Methods
-    
+
     private nonisolated static func createDirectories(dataPath: String) throws {
         let fm = FileManager.default
         try fm.createDirectory(atPath: ZaloPaths.cloneAppBase, withIntermediateDirectories: true)
@@ -168,23 +153,16 @@ final class ZaloCloneEngine: ObservableObject {
         isolateKeychains(dataPath: dataPath)
     }
 
-    /// Clone KHÔNG được đụng keychain THẬT của máy. Bản 2.1.16 từng symlink
-    /// Library/Keychains của clone → keychain thật để tránh phiền "đặt lại khoá";
-    /// nhưng kết hợp CFFIXED_USER_HOME, macOS coi login keychain sai bối cảnh và
-    /// RESET nó (login.keychain-db → login_renamed_N) → Zalo gốc + mọi app đăng xuất,
-    /// phải tạo lại khoá. Nay: gỡ symlink cũ (nếu có), cho clone thư mục keychain
-    /// riêng rỗng. Khi chạy dùng cờ --use-mock-keychain để Electron không đụng
-    /// keychain hệ thống (xem ProcessManager.launchClone).
     nonisolated static func isolateKeychains(dataPath: String) {
         let fm = FileManager.default
         let link = "\(dataPath)/Library/Keychains"
-        // Gỡ symlink độc hại do bản 2.1.16 để lại (trỏ vào keychain thật).
+
         if (try? fm.destinationOfSymbolicLink(atPath: link)) != nil {
             try? fm.removeItem(atPath: link)
         }
         try? fm.createDirectory(atPath: link, withIntermediateDirectories: true)
     }
-    
+
     private nonisolated static func forceRemove(_ path: String) {
         let fm = FileManager.default
         guard fm.fileExists(atPath: path) else { return }
@@ -207,21 +185,21 @@ final class ZaloCloneEngine: ObservableObject {
             rm.waitUntilExit()
         }
     }
-    
+
     private nonisolated static func copyBundle(from source: String, to destination: String) async throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: "\(source)/Contents/Info.plist") else {
             throw CloneError.zaloNotFound
         }
-        
+
         forceRemove(destination)
-        
+
         let ditto = Process()
         ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
         ditto.arguments = [source, destination]
         try ditto.run()
         ditto.waitUntilExit()
-        
+
         if ditto.terminationStatus != 0 || !fm.fileExists(atPath: "\(destination)/Contents/Info.plist") {
             forceRemove(destination)
             let rsync = Process()
@@ -233,13 +211,13 @@ final class ZaloCloneEngine: ObservableObject {
                 throw CloneError.copyFailed("Không sao chép được Zalo (ditto/rsync \(rsync.terminationStatus))")
             }
         }
-        
+
         let chmod = Process()
         chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
         chmod.arguments = ["-R", "u+w", destination]
         try? chmod.run()
         chmod.waitUntilExit()
-        
+
         guard fm.fileExists(atPath: "\(destination)/Contents/Info.plist") else {
             throw CloneError.plistNotFound
         }
@@ -247,25 +225,23 @@ final class ZaloCloneEngine: ObservableObject {
             throw CloneError.copyFailed("Sao chép xong nhưng binary Zalo không hợp lệ — thử xoá thư mục Clones rồi tạo lại")
         }
     }
-    
-    /// Giữ nguyên Mach-O `Contents/MacOS/Zalo` (bắt buộc trên Apple Silicon) và
-    /// gắn HOME/TMPDIR qua LSEnvironment — không thay binary bằng script bash.
+
     private nonisolated static func injectCloneEnvironment(appPath: String, dataPath: String) throws {
         let binaryPath = "\(appPath)/Contents/MacOS/Zalo"
         guard MachOFile.isMachO(at: binaryPath) else {
             throw CloneError.copyFailed("Binary Zalo không phải Mach-O — không thể tạo clone trên chip này")
         }
-        
+
         let origBinaryPath = "\(appPath)/Contents/MacOS/Zalo.orig"
         if FileManager.default.fileExists(atPath: origBinaryPath) {
             try? FileManager.default.removeItem(atPath: origBinaryPath)
         }
-        
+
         let plistPath = "\(appPath)/Contents/Info.plist"
         guard FileManager.default.fileExists(atPath: plistPath) else {
             throw CloneError.plistNotFound
         }
-        
+
         _ = try? runPlistBuddy(plistPath: plistPath, command: "Add :LSEnvironment dict")
         func setEnv(_ key: String, _ value: String) throws {
             if (try? runPlistBuddy(plistPath: plistPath, command: "Set :LSEnvironment:\(key) \(value)")) == nil {
@@ -273,21 +249,19 @@ final class ZaloCloneEngine: ObservableObject {
             }
         }
         try setEnv("HOME", dataPath)
-        // Electron lấy appData qua NSHomeDirectory (bỏ qua HOME) → clone dùng chung
-        // SingletonLock với Zalo gốc, mở app gốc rồi tự thoát. CFFIXED_USER_HOME ghi đè được.
+
         try setEnv("CFFIXED_USER_HOME", dataPath)
         try setEnv("TMPDIR", "\(dataPath)/tmp")
         _ = try? setEnv("MallocNanoZone", "0")
         DiagnosticLogger.info("CREATE", "LSEnvironment HOME=\(dataPath)")
     }
-    
+
     private nonisolated static func modifyBundleID(appPath: String, newBundleID: String) throws {
         let plistPath = "\(appPath)/Contents/Info.plist"
         guard FileManager.default.fileExists(atPath: plistPath) else { throw CloneError.plistNotFound }
         try runPlistBuddy(plistPath: plistPath, command: "Set :CFBundleIdentifier \(newBundleID)")
         _ = try? runPlistBuddy(plistPath: plistPath, command: "Delete :ElectronAsarIntegrity")
-        
-        // Đổi Bundle ID cho các Helper apps để đồng bộ
+
         let frameworksDir = "\(appPath)/Contents/Frameworks"
         let fm = FileManager.default
         if let contents = try? fm.contentsOfDirectory(atPath: frameworksDir) {
@@ -306,7 +280,7 @@ final class ZaloCloneEngine: ObservableObject {
             }
         }
     }
-    
+
     private nonisolated static func runPlistBuddy(plistPath: String, command: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/libexec/PlistBuddy")
@@ -317,40 +291,36 @@ final class ZaloCloneEngine: ObservableObject {
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw CloneError.plistWriteFailed }
     }
-    
-    // MARK: - Patch ASAR
-    
+
     private nonisolated static func patchAsarSockets(appPath: String, instanceIndex: Int) throws {
         let asarPath = "\(appPath)/Contents/Resources/app.asar"
-        
+
         guard FileManager.default.fileExists(atPath: asarPath) else {
             return
         }
-        
+
         var data = try Data(contentsOf: URL(fileURLWithPath: asarPath))
-        
+
         let sendOld = ZaloPaths.originalSendSocket
         let recvOld = ZaloPaths.originalRecvSocket
-        
+
         let indexStr = String(format: "%04d", 2000 + instanceIndex)
         let sendNew = "/tmp/socketzalosend\(indexStr)"
         let recvNew = "/tmp/socketzalorecv\(indexStr)"
-        
+
         assert(sendOld.count == sendNew.count, "Socket string length mismatch!")
         assert(recvOld.count == recvNew.count, "Socket string length mismatch!")
-        
+
         data = binaryReplace(in: data, find: sendOld, replace: sendNew)
         data = binaryReplace(in: data, find: recvOld, replace: recvNew)
-        
+
         try data.write(to: URL(fileURLWithPath: asarPath))
     }
-    
-    /// Binary replace — O(n) in-place cho same-length strings (socket paths)
+
     private nonisolated static func binaryReplace(in data: Data, find: String, replace: String) -> Data {
         guard let findData = find.data(using: .utf8),
               let replaceData = replace.data(using: .utf8) else { return data }
-        
-        // Same-length optimization: overwrite in-place, không realloc
+
         if findData.count == replaceData.count {
             var result = data
             result.withUnsafeMutableBytes { buffer in
@@ -358,7 +328,7 @@ final class ZaloCloneEngine: ObservableObject {
                 let len = buffer.count
                 let findLen = findData.count
                 guard findLen <= len else { return }
-                
+
                 findData.withUnsafeBytes { findPtr in
                     replaceData.withUnsafeBytes { replPtr in
                         guard let findBase = findPtr.baseAddress,
@@ -377,8 +347,7 @@ final class ZaloCloneEngine: ObservableObject {
             }
             return result
         }
-        
-        // Fallback: khác length (hiếm khi xảy ra)
+
         var result = data
         var searchRange = result.startIndex..<result.endIndex
         while let range = result.range(of: findData, in: searchRange) {
@@ -387,7 +356,7 @@ final class ZaloCloneEngine: ObservableObject {
         }
         return result
     }
-    
+
     private nonisolated static func removeQuarantine(appPath: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
@@ -395,11 +364,10 @@ final class ZaloCloneEngine: ObservableObject {
         try process.run()
         process.waitUntilExit()
     }
-    
+
     private nonisolated static func resignApp(appPath: String) async throws {
         let fm = FileManager.default
-        
-        // JIT + Hardened Runtime — bắt buộc để Electron/V8 chạy trên Apple Silicon
+
         let entitlementsContent = """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -418,27 +386,25 @@ final class ZaloCloneEngine: ObservableObject {
         </dict>
         </plist>
         """
-        
+
         let tempEntitlementsPath = "\(NSTemporaryDirectory())zalo_clone_entitlements_\(UUID().uuidString).plist"
         try entitlementsContent.write(toFile: tempEntitlementsPath, atomically: true, encoding: .utf8)
         defer {
             try? fm.removeItem(atPath: tempEntitlementsPath)
         }
-        
-        // Ký từ trong ra ngoài. Không dùng --deep (deprecated macOS 13+, làm sai identifier helper trên ARM).
-        
+
         let libsDir = "\(appPath)/Contents/Frameworks/Electron Framework.framework/Versions/A/Libraries"
         if let libItems = try? fm.contentsOfDirectory(atPath: libsDir) {
             for lib in libItems where lib.hasSuffix(".dylib") {
                 try? runCodesign(path: "\(libsDir)/\(lib)", throwOnError: false)
             }
         }
-        
+
         let crashpadPath = "\(appPath)/Contents/Frameworks/Electron Framework.framework/Versions/A/Helpers/chrome_crashpad_handler"
         if fm.fileExists(atPath: crashpadPath) {
             try? runCodesign(path: crashpadPath, throwOnError: false)
         }
-        
+
         let frameworksDir = "\(appPath)/Contents/Frameworks"
         if let contents = try? fm.contentsOfDirectory(atPath: frameworksDir) {
             for item in contents where item.hasSuffix(".framework") {
@@ -448,24 +414,24 @@ final class ZaloCloneEngine: ObservableObject {
                 try runCodesign(path: "\(frameworksDir)/\(item)", entitlementsPath: tempEntitlementsPath)
             }
         }
-        
+
         let mainExec = "\(appPath)/Contents/MacOS/Zalo"
         if MachOFile.isMachO(at: mainExec) {
             try runCodesign(path: mainExec, entitlementsPath: tempEntitlementsPath)
         }
-        
+
         let origBinaryPath = "\(appPath)/Contents/MacOS/Zalo.orig"
         if fm.fileExists(atPath: origBinaryPath), MachOFile.isMachO(at: origBinaryPath) {
             try? runCodesign(path: origBinaryPath, entitlementsPath: tempEntitlementsPath, throwOnError: false)
         }
-        
+
         try runCodesign(path: appPath, entitlementsPath: tempEntitlementsPath)
-        
+
         guard MachOFile.isMachO(at: mainExec) else {
             throw CloneError.codesignFailed("Main executable không còn là Mach-O sau khi ký mã")
         }
     }
-    
+
     private nonisolated static func runCodesign(
         path: String,
         entitlementsPath: String? = nil,
@@ -491,7 +457,7 @@ final class ZaloCloneEngine: ObservableObject {
             let stderr = String(data: errorData, encoding: .utf8) ?? ""
             return (process.terminationStatus, stderr)
         }
-        
+
         func scrubXattrs() {
             let xattr = Process()
             xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
@@ -499,24 +465,23 @@ final class ZaloCloneEngine: ObservableObject {
             try? xattr.run()
             xattr.waitUntilExit()
         }
-        
+
         var result = try invoke(runtime: true, deep: false)
-        
+
         if result.status != 0, result.stderr.lowercased().contains("detritus") {
             scrubXattrs()
             result = try invoke(runtime: true, deep: false)
         }
-        
+
         let isBundle = path.hasSuffix(".app") || path.hasSuffix(".framework")
         if result.status != 0, isBundle {
             result = try invoke(runtime: true, deep: true)
         }
-        
-        // Intel: đường ký cũ (--deep, không runtime) từng chạy ổn. ARM giữ runtime.
+
         if result.status != 0, isBundle, !HostEnvironment.hasArm64Hardware {
             result = try invoke(runtime: false, deep: true)
         }
-        
+
         if result.status != 0 && throwOnError {
             let trimmed = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             DiagnosticLogger.error("CODESIGN", "Fail \(path): \(trimmed)")
@@ -524,8 +489,6 @@ final class ZaloCloneEngine: ObservableObject {
         }
     }
 }
-
-// MARK: - Host / Mach-O helpers
 
 enum HostEnvironment {
     static var machineArchitecture: String {
@@ -537,21 +500,21 @@ enum HostEnvironment {
             }
         }
     }
-    
+
     static var isRunningUnderRosetta: Bool {
         var translated: Int32 = 0
         var size = MemoryLayout<Int32>.size
         let result = sysctlbyname("sysctl.proc_translated", &translated, &size, nil, 0)
         return result == 0 && translated == 1
     }
-    
+
     static var hasArm64Hardware: Bool {
         var value: Int32 = 0
         var size = MemoryLayout<Int32>.size
         let result = sysctlbyname("hw.optional.arm64", &value, &size, nil, 0)
         return result == 0 && value == 1
     }
-    
+
     static var description: String {
         if isRunningUnderRosetta {
             return "\(machineArchitecture) via Rosetta (Apple Silicon)"
@@ -580,7 +543,6 @@ enum MachOFile {
     }
 }
 
-// MARK: - Errors
 enum CloneError: LocalizedError, Sendable {
     case zaloNotFound
     case copyFailed(String)
@@ -589,7 +551,7 @@ enum CloneError: LocalizedError, Sendable {
     case codesignFailed(String)
     case launchFailed(String)
     case alreadyRunning
-    
+
     var errorDescription: String? {
         switch self {
         case .zaloNotFound:       return "Không tìm thấy Zalo tại /Applications/Zalo.app"

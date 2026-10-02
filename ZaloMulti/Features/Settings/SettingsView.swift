@@ -1,8 +1,3 @@
-// SettingsView.swift
-// ZaloMulti
-//
-// Cài đặt ứng dụng
-
 import SwiftUI
 
 struct SettingsView: View {
@@ -12,12 +7,12 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Chung", systemImage: "gear")
                 }
-            
+
             LogSettingsView()
                 .tabItem {
                     Label("Log", systemImage: "doc.text.magnifyingglass")
                 }
-            
+
             AboutView()
                 .tabItem {
                     Label("Giới thiệu", systemImage: "info.circle")
@@ -27,44 +22,43 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Log Settings
 struct LogSettingsView: View {
     @State private var logContent = ""
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Diagnostic Log")
                     .font(.headline)
                 Spacer()
-                
+
                 Button("Xuất log ra Desktop") {
                     DiagnosticTracer.exportReport(store: CloneStore.shared)
                 }
                 .buttonStyle(.bordered)
-                
+
                 Button("Mở trong Finder") {
                     DiagnosticLogger.openLogInFinder()
                 }
                 .buttonStyle(.bordered)
-                
+
                 Button("Copy đường dẫn") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(DiagnosticLogger.logFilePath, forType: .string)
                 }
                 .buttonStyle(.bordered)
-                
+
                 Button("Refresh") {
                     loadLog()
                 }
                 .buttonStyle(.borderedProminent)
             }
-            
+
             Text("File: \(DiagnosticLogger.logFilePath)")
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
-            
+
             ScrollView {
                 Text(logContent)
                     .font(.system(size: 11, design: .monospaced))
@@ -83,7 +77,7 @@ struct LogSettingsView: View {
         .padding()
         .onAppear { loadLog() }
     }
-    
+
     private func loadLog() {
         let full = DiagnosticLogger.readLogContents()
         let lines = full.components(separatedBy: "\n")
@@ -92,10 +86,9 @@ struct LogSettingsView: View {
     }
 }
 
-// MARK: - General Settings
 struct GeneralSettingsView: View {
     @StateObject private var settings = SettingsManager.shared
-    
+
     var body: some View {
         Form {
             Section("Giao diện") {
@@ -105,11 +98,11 @@ struct GeneralSettingsView: View {
                     Text("Tối").tag("dark")
                 }
             }
-            
+
             Section("Chung") {
                 Toggle("Hiện icon trên Menu Bar", isOn: $settings.settings.showMenuBarIcon)
                 Toggle("Kiểm tra cập nhật khi khởi động", isOn: $settings.settings.checkUpdateOnStartup)
-                
+
                 Stepper("Giới hạn số clone: \(settings.settings.maxClones)",
                         value: $settings.settings.maxClones, in: 1...50)
             }
@@ -118,7 +111,6 @@ struct GeneralSettingsView: View {
     }
 }
 
-// MARK: - About View
 struct AboutView: View {
     var body: some View {
         VStack(spacing: 16) {
@@ -133,22 +125,22 @@ struct AboutView: View {
                         .font(.system(size: 28, weight: .heavy))
                         .foregroundColor(.white)
                 )
-            
+
             Text("ZaloMulti")
                 .font(.title3)
                 .fontWeight(.bold)
-            
+
             Text("Phiên bản \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0") (macOS)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            
+
             Divider()
                 .frame(width: 200)
-            
+
             Text("Quản lý đa tài khoản Zalo Clone")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            
+
             Text("© 2026 ZaloMulti — All rights reserved")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)

@@ -1,6 +1,3 @@
-// ContentView.swift
-// ZaloMulti
-
 import SwiftUI
 
 struct ContentView: View {
@@ -24,8 +21,7 @@ struct ContentView: View {
                     .frame(width: 240)
             }
         }
-        // Form dùng .sheet (chuẩn macOS) — sheet tự trở thành key window và quản lý
-        // first responder, nên TextField nhận bàn phím. Overlay ZStack cũ không làm được.
+
         .sheet(isPresented: $cloneStore.showAddCloneSheet) {
             AddCloneView(store: cloneStore)
         }

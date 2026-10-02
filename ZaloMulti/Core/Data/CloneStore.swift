@@ -1,25 +1,14 @@
-// CloneStore.swift
-// ZaloMulti
-//
-// State management trung tâm — KHÔNG singleton.
-// Được inject qua @EnvironmentObject từ App root.
-//
-// Rebuild v2.1 — theo kiến trúc zDesk-Pro.
-
 import Foundation
 import SwiftUI
 import Darwin
 
 @MainActor
 final class CloneStore: ObservableObject {
-    
-    // MARK: - Singleton
+
     static let shared = CloneStore()
-    
-    // MARK: - Constants
+
     static let maxClones = 4
-    
-    // MARK: - Published Properties
+
     @Published var clones: [CloneAccount] = []
     @Published var showAddCloneSheet = false {
         didSet {
@@ -29,10 +18,9 @@ final class CloneStore: ObservableObject {
     }
     @Published var errorMessage: String?
     @Published var showError = false
-    
-    /// Kiểm tra còn slot trống không (tối đa 4 tài khoản)
+
     var canAddMore: Bool { clones.count < Self.maxClones }
-    
+
     func openAddClone(source: String = "unknown") {
         DiagnosticLogger.info("STORE", "openAddClone source=\(source) canAddMore=\(canAddMore) count=\(clones.count) sheetShown=\(showAddCloneSheet)")
         guard canAddMore else {
@@ -42,28 +30,20 @@ final class CloneStore: ObservableObject {
         }
         showAddCloneSheet = true
     }
-    
-    // MARK: - Dependencies
+
     let engine = ZaloCloneEngine()
     let processManager = ProcessManager()
-    
-    // MARK: - Persistence
+
     private let storageKey = "clone_accounts_v1"
     private var syncTimer: Timer?
-    
-    // MARK: - Init
-    
+
     init() {
         DiagnosticLogger.info("STORE", "CloneStore khởi tạo...")
         loadClones()
         DiagnosticLogger.info("STORE", "Đã load \(clones.count) clones từ storage")
         startSyncTimer()
     }
-    
-    
-    // MARK: - Timer
-    
-    /// Timer sync trạng thái mỗi 3 giây — dùng kill(pid,0) O(1)
+
     private func startSyncTimer() {
         syncTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -71,10 +51,7 @@ final class CloneStore: ObservableObject {
             }
         }
     }
-    
-    // MARK: - CRUD
-    
-    /// Thêm clone mới
+
     func addClone(name: String, phone: String) {
         guard canAddMore else {
             errorMessage = "Đã đạt giới hạn tối đa \(Self.maxClones) tài khoản."
@@ -84,7 +61,7 @@ final class CloneStore: ObservableObject {
         }
         let nextIndex = (clones.map(\.cloneIndex).max() ?? 0) + 1
         DiagnosticLogger.info("STORE", "addClone: name='\(name)', nextIndex=\(nextIndex)")
-        
+
         Task {
             do {
                 let clone = try await engine.createClone(
@@ -100,7 +77,7 @@ final class CloneStore: ObservableObject {
             }
         }
     }
-    
+
     func addCreatedClone(_ clone: CloneAccount) {
         var next = clones
         if !next.contains(where: { $0.id == clone.id }) {
@@ -110,23 +87,21 @@ final class CloneStore: ObservableObject {
         saveClones()
         DiagnosticLogger.success("STORE", "Clone '\(clone.name)' đã thêm (total=\(clones.count))")
     }
-    
-    /// Cập nhật thông tin clone
+
     func updateClone(_ updated: CloneAccount) {
         guard let index = clones.firstIndex(where: { $0.id == updated.id }) else { return }
         clones[index] = updated
         saveClones()
     }
-    
-    /// Xoá clone
+
     func deleteClone(_ clone: CloneAccount) {
         DiagnosticLogger.info("STORE", "deleteClone: '\(clone.name)'")
-        
+
         if let pid = clone.processID {
             kill(pid, SIGKILL)
         }
         processManager.runningProcesses.removeValue(forKey: clone.id)
-        
+
         do {
             try engine.deleteClone(clone)
             clones = clones.filter { $0.id != clone.id }
@@ -138,12 +113,10 @@ final class CloneStore: ObservableObject {
             DiagnosticLogger.error("STORE", "deleteClone thất bại", error: error)
         }
     }
-    
-    // MARK: - Launch / Stop
-    
+
     func launchClone(_ clone: CloneAccount) {
         guard let index = clones.firstIndex(where: { $0.id == clone.id }) else { return }
-        
+
         do {
             let pid = try processManager.launchClone(clone)
             clones[index].status = .running
@@ -162,7 +135,7 @@ final class CloneStore: ObservableObject {
             }
         }
     }
-    
+
     func stopClone(_ clone: CloneAccount) {
         guard let index = clones.firstIndex(where: { $0.id == clone.id }) else { return }
         processManager.stopClone(clone)
@@ -170,10 +143,10 @@ final class CloneStore: ObservableObject {
         clones[index].processID = nil
         saveClones()
     }
-    
+
     func stopAllClones() {
         DiagnosticLogger.info("STORE", "stopAllClones — \(clones.count) clones")
-        
+
         for clone in clones where clone.status == .running {
             let script = "tell application id \"\(clone.bundleID)\" to quit"
             let proc = Process()
@@ -183,7 +156,7 @@ final class CloneStore: ObservableObject {
             proc.standardError = FileHandle.nullDevice
             try? proc.run()
         }
-        
+
         processManager.stopAllClones()
         for i in clones.indices {
             clones[i].status = .stopped
@@ -191,22 +164,17 @@ final class CloneStore: ObservableObject {
         }
         saveClones()
     }
-    
-    // MARK: - Statistics
-    
+
     var runningCount: Int { clones.filter { $0.status == .running }.count }
     var totalCount: Int { clones.count }
-    
-    // MARK: - Process Sync
-    
-    /// Đồng bộ trạng thái — dùng kill(pid,0) O(1) syscall
+
     private func syncRunningStatus() {
         var changed = false
-        
+
         for i in clones.indices {
             let clone = clones[i]
             guard clone.status == .running else { continue }
-            
+
             if let pid = clone.processID {
                 if !ProcessManager.isRunning(pid: pid) {
                     clones[i].status = .stopped
@@ -219,12 +187,10 @@ final class CloneStore: ObservableObject {
                 changed = true
             }
         }
-        
+
         if changed { saveClones() }
     }
-    
-    // MARK: - Persistence
-    
+
     func saveClones() {
         do {
             let data = try JSONEncoder().encode(clones)
@@ -233,7 +199,7 @@ final class CloneStore: ObservableObject {
             DiagnosticLogger.error("STORE", "saveClones FAILED", error: error)
         }
     }
-    
+
     private func loadClones() {
         guard let data = UserDefaults.standard.data(forKey: storageKey) else { return }
         do {
@@ -242,18 +208,17 @@ final class CloneStore: ObservableObject {
             DiagnosticLogger.error("STORE", "loadClones: decode FAILED", error: error)
         }
     }
-    
+
     func startBackgroundSync() {
         Task { @MainActor in
             syncProcessStatus()
         }
     }
-    
-    /// Startup sync — dùng kill(pid,0) + pgrep fallback cho orphan recovery
+
     private func syncProcessStatus() {
         DiagnosticLogger.info("STORE", "Sync process status cho \(clones.count) clones...")
         var changed = 0
-        
+
         for i in clones.indices {
             if let pid = clones[i].processID, ProcessManager.isRunning(pid: pid) {
                 clones[i].status = .running
@@ -271,7 +236,7 @@ final class CloneStore: ObservableObject {
                 }
             }
         }
-        
+
         if changed > 0 { saveClones() }
     }
 }

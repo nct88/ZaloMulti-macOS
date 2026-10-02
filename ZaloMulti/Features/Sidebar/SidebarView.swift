@@ -1,22 +1,15 @@
-// SidebarView.swift
-// ZaloMulti
-//
-// Sidebar bên phải — buttons, social links, stats.
-// Rebuild v2.1 — @EnvironmentObject pattern.
-
 import SwiftUI
 
 struct SidebarView: View {
     @ObservedObject var store: CloneStore
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Thông báo riêng tư
+
             PrivateNotificationListView()
-            
+
             Divider()
-            
-            // Đóng tất cả Clone
+
             Button(action: { store.stopAllClones() }) {
                 Label("Đóng tất cả Clone", systemImage: "xmark.circle.fill")
                     .font(.system(size: 14, weight: .semibold))
@@ -28,16 +21,14 @@ struct SidebarView: View {
             .controlSize(.large)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            
+
             Divider()
-            
-            // Footer Stats
+
             SidebarFooterView(store: store)
                 .padding()
-            
+
             Divider()
-            
-            // Social Icons
+
             SocialLinksView()
                 .padding(.vertical, 10)
         }
@@ -45,7 +36,6 @@ struct SidebarView: View {
     }
 }
 
-// MARK: - Social Links
 struct SocialLinksView: View {
     private struct SocialItem {
         let name: String
@@ -55,7 +45,7 @@ struct SocialLinksView: View {
         let iconColor: Color?
         let bgColor: Color?
     }
-    
+
     private let items: [SocialItem] = [
         SocialItem(name: "Messenger", urlAccessor: { SecureConfig.socialMessenger },
                    imageName: "logo-messenger", systemIcon: nil, iconColor: nil, bgColor: nil),
@@ -70,7 +60,7 @@ struct SocialLinksView: View {
         SocialItem(name: "Hotline", urlAccessor: { "tel:\(SecureConfig.contactPhone)" },
                    imageName: "", systemIcon: "phone.fill", iconColor: .white, bgColor: Color(hex: "#34C759"))
     ]
-    
+
     var body: some View {
         HStack(spacing: 8) {
             ForEach(items.indices, id: \.self) { index in
@@ -103,10 +93,9 @@ struct SocialLinksView: View {
     }
 }
 
-// MARK: - Footer Stats
 struct SidebarFooterView: View {
     @ObservedObject var store: CloneStore
-    
+
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 5) {
@@ -118,7 +107,7 @@ struct SidebarFooterView: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
             }
-            
+
             HStack(spacing: 0) {
                 VStack {
                     Text("\(store.runningCount)")
@@ -131,9 +120,9 @@ struct SidebarFooterView: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
-                
+
                 Divider().frame(height: 30)
-                
+
                 VStack {
                     Text("\(store.totalCount)")
                         .font(.title2)
@@ -145,14 +134,13 @@ struct SidebarFooterView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            
-            // Progress bar
+
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(Color.secondary.opacity(0.2))
                         .frame(height: 4)
-                    
+
                     RoundedRectangle(cornerRadius: 2)
                         .fill(
                             LinearGradient(

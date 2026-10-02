@@ -1,12 +1,3 @@
-// AddCloneView.swift
-// ZaloMulti
-//
-// Form thêm clone trong cùng cửa sổ SwiftUI (không NSWindow riêng).
-// v2.1.17 — dùng TextField thuần SwiftUI + @FocusState thay cho NSTextField nhúng.
-//   Overlay trong ZStack bị SwiftUI dựng lại nhiều lần khiến NSTextField mất
-//   first responder (log chẩn đoán: focus ok=true lúc mở nhưng sau đó
-//   firstResponder=AppKitWindow, không có keyDown nào tới ô nhập).
-
 import SwiftUI
 
 @MainActor
@@ -124,8 +115,7 @@ struct AddCloneView: View {
         )
         .onAppear {
             DiagnosticLogger.info("UI", "AddCloneView onAppear")
-            // Đặt focus sau khi view vào cây hiển thị. @FocusState bền với
-            // việc SwiftUI dựng lại view, khác NSTextField trước đây.
+
             DispatchQueue.main.async { focusedField = .name }
         }
         .onChange(of: focusedField) { _, newValue in

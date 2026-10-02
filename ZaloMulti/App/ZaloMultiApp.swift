@@ -1,30 +1,23 @@
-// ZaloMultiApp.swift
-// ZaloMulti
-//
-// Entry point (@main) — khởi tạo app với CloneStore và window config.
-// Rebuild v2.1 — @StateObject + .environmentObject() theo zDesk-Pro.
-
 import SwiftUI
 
 @main
 struct ZaloMultiApp: App {
     @StateObject private var cloneStore = CloneStore.shared
     @State private var showUpdateSheet = false
-    
+
     init() {
-        // Logger init (lazy — không phụ thuộc SecureConfig)
+
         DiagnosticLogger.info("APP", "ZaloMulti — khởi động")
         DiagnosticLogger.info("APP", "Host: \(HostEnvironment.description)")
         DiagnosticLogger.info("APP", "Log file: \(DiagnosticLogger.logFilePath)")
         if HostEnvironment.isRunningUnderRosetta {
             DiagnosticLogger.warning("APP", "Đang chạy bản Intel qua Rosetta trên chip M — form thêm clone dễ lỗi. Dùng bản Universal/Apple Silicon.")
         }
-        
-        // Detect Zalo source
+
         let zaloInfo = ZaloCloneEngine().detectSourceZalo()
         DiagnosticLogger.info("APP", "Zalo Desktop: installed=\(zaloInfo.installed), version=\(zaloInfo.version ?? "N/A")")
     }
-    
+
     var body: some Scene {
         WindowGroup("Zalỏ - macOS") {
             ContentView(cloneStore: cloneStore)
@@ -34,18 +27,18 @@ struct ZaloMultiApp: App {
                     DiagnosticTracer.start()
                     DiagnosticTracer.snapshot(store: cloneStore, reason: "launch")
                     cloneStore.startBackgroundSync()
-                    
+
                     Task { @MainActor in
                         AntiTamper.initialize()
                         MigrationManager.shared.runMigrations()
                         MigrationManager.shared.cleanupOldVersionData()
                         _ = NotificationMonitor.shared
                     }
-                    
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
                         DonateManager.checkAndPromptDonate()
                     }
-                    
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
                         if SettingsManager.shared.settings.checkUpdateOnStartup {
                             InAppUpdater.shared.checkForUpdates()
@@ -89,7 +82,7 @@ struct ZaloMultiApp: App {
                 .keyboardShortcut("q", modifiers: [.command, .shift])
             }
         }
-        
+
         Settings {
             SettingsView()
                 .environmentObject(cloneStore)

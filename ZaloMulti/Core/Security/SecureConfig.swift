@@ -1,21 +1,7 @@
-// SecureConfig.swift
-// ZaloMulti
-//
-// AES-256-GCM string decryption — bảo vệ endpoints, URLs, identifiers.
-// Encrypted values được generate bởi generate_encrypted.swift
-
 import Foundation
 import CryptoKit
 
-/// Quản lý giải mã an toàn các chuỗi nhạy cảm — AES-256-GCM
 enum SecureConfig {
-    
-    // MARK: - Key Derivation (v2 — rải salt + biến đổi số học, 2 vòng SHA256)
-    //
-    // Khoá KHÔNG để lộ nguyên mảng: salt được dựng từ nhiều mảnh rồi trộn bằng
-    // XOR/cộng/dịch bit, kết hợp bundle ID (và bản đảo của nó) qua 2 vòng băm.
-    // Ràng buộc: giá trị mã hoá chỉ giải được dưới ĐÚNG bundle ID production.
-    // (Lưu ý: đây là obfuscation — nâng rào cản, không phải bất khả phá ở client.)
 
     nonisolated(unsafe) private static var _cachedKey: SymmetricKey?
 
@@ -50,9 +36,7 @@ enum SecureConfig {
         _cachedKey = key
         return key
     }
-    
-    // MARK: - Encrypted Values (auto-generated)
-    
+
     static let _donateAPIBase = "b6cbbb14fff795bda269f915f784c63abd83335accb68f744dd536bcae62676f9c956c7e124d77ca309a2409cb8e8c312f"
     static let _donatePageURL = "d7235a6cd7adff8972920f843a88e449a82da7447a867966da3483d80a74b55b8bf4bb688f8eab8312a8c3add309c34710d099f0"
     static let _fallbackDonate = "b826ca1aa9f7203dff3e13fd64fb66b2bf112ee9faac399449c049fe9169f9f5943f4c55a3a80e42ba2630e97311a0f759b918dc"
@@ -67,9 +51,7 @@ enum SecureConfig {
     static let _integrityDonate = "e60c9f412b3e5e49fe4516d9819273e0f21a880ea503f401bcd0c21d6438c95be9f7"
     static let _contactEmail = "974f05148c087083aab6dbad3124a6de411d5d2e93fa5ceaf5cbcfcb38dab10df59d02382f54a00f3014bccc"
     static let _contactPhone = "a4ed5b2b8936a0968cc6ee35f132d5a5a383ee3d407b356b8174d3728d1663cdf44bae0f894a"
-    
-    // MARK: - Public Accessors
-    
+
     static var donateAPIBase: String { decrypt(_donateAPIBase) ?? "" }
     static var donatePageURL: String { decrypt(_donatePageURL) ?? "" }
     static var fallbackDonate: String { decrypt(_fallbackDonate) ?? "" }
@@ -85,27 +67,20 @@ enum SecureConfig {
     static var socialDonate: String { decrypt(_socialDonate) ?? "" }
     static var logSubsystem: String { decrypt(_logSubsystem) ?? "" }
 
-    // MARK: - Contact (encrypted)
     static var contactEmail: String { decrypt(_contactEmail) ?? "" }
     static var contactPhone: String { decrypt(_contactPhone) ?? "" }
-    
-    // MARK: - Integrity Validation Components
-    
+
     static var workersDev: String { decrypt(_workersDev) ?? "" }
     static var integrityDonate: String { decrypt(_integrityDonate) ?? "" }
-    
-    // MARK: - Decryption
-    
-    /// Decrypt AES-256-GCM hex string → plaintext
-    /// Format: nonce(12 bytes) + ciphertext(N bytes) + tag(16 bytes)
+
     static func decrypt(_ hexString: String) -> String? {
         guard let combined = Data(hexString: hexString),
               combined.count > 28 else { return nil }
-        
+
         let nonceData = combined.prefix(12)
         let ciphertext = combined[combined.index(combined.startIndex, offsetBy: 12)..<combined.index(combined.endIndex, offsetBy: -16)]
         let tag = combined.suffix(16)
-        
+
         do {
             let sealedBox = try AES.GCM.SealedBox(
                 nonce: .init(data: nonceData),
@@ -120,7 +95,6 @@ enum SecureConfig {
     }
 }
 
-// MARK: - Data Hex Extension
 extension Data {
     init?(hexString: String) {
         let hex = hexString.trimmingCharacters(in: .whitespacesAndNewlines)

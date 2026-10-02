@@ -1,23 +1,17 @@
-// TitleBarView.swift
-// ZaloMulti
-//
-// Custom titlebar giống macOS native style
-
 import SwiftUI
 
 struct TitleBarView: View {
     @Binding var showSidebar: Bool
     @Environment(\.colorScheme) var colorScheme
-    
+
     var body: some View {
         HStack(spacing: 12) {
-            // Traffic lights placeholder (macOS tự xử lý)
+
             Color.clear
                 .frame(width: 68, height: 52)
-            
+
             Spacer()
-            
-            // App title
+
             HStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 5)
                     .fill(LinearGradient(
@@ -30,15 +24,14 @@ struct TitleBarView: View {
                             .font(.system(size: 9, weight: .heavy))
                             .foregroundColor(.white)
                     )
-                
+
                 Text("zDesk")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
             }
-            
+
             Spacer()
-            
-            // Toggle sidebar button
+
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     showSidebar.toggle()

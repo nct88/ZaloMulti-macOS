@@ -1,9 +1,3 @@
-// CloneCardView.swift
-// ZaloMulti
-//
-// Card hiển thị thông tin một clone account — với avatar + display_name.
-// Rebuild v2.1 — @EnvironmentObject, proper state management.
-
 import SwiftUI
 
 struct CloneCardView: View {
@@ -14,7 +8,7 @@ struct CloneCardView: View {
     @State private var isHovered = false
     @State private var avatarImage: NSImage?
     @State private var displayName: String?
-    
+
     var statusColor: Color {
         switch clone.status {
         case .running:  return .green
@@ -23,7 +17,7 @@ struct CloneCardView: View {
         case .creating: return .blue
         }
     }
-    
+
     var statusGradient: [Color] {
         switch clone.status {
         case .running:  return [.green, .mint]
@@ -32,12 +26,12 @@ struct CloneCardView: View {
         case .creating: return [.blue, .cyan]
         }
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header: Avatar + Info + Status
+
             HStack(spacing: 12) {
-                // Avatar
+
                 ZStack(alignment: .bottomTrailing) {
                     if let avatar = avatarImage {
                         Image(nsImage: avatar)
@@ -59,7 +53,7 @@ struct CloneCardView: View {
                                     .foregroundColor(.white)
                             )
                     }
-                    
+
                     Circle()
                         .fill(statusColor)
                         .frame(width: 12, height: 12)
@@ -68,12 +62,12 @@ struct CloneCardView: View {
                                 .stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 2)
                         )
                 }
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(displayName ?? clone.name)
                         .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
-                    
+
                     HStack(spacing: 4) {
                         Image(systemName: "iphone")
                             .font(.caption2)
@@ -84,10 +78,9 @@ struct CloneCardView: View {
                             .lineLimit(1)
                     }
                 }
-                
+
                 Spacer()
-                
-                // Status badge
+
                 Text(clone.status.displayName)
                     .font(.system(size: 11, weight: .bold))
                     .padding(.horizontal, 10)
@@ -105,11 +98,10 @@ struct CloneCardView: View {
                     .foregroundColor(statusColor)
             }
             .padding(14)
-            
+
             Divider()
                 .padding(.horizontal, 14)
-            
-            // Footer: Meta + Actions
+
             HStack(spacing: 6) {
                 if clone.status == .running, let pid = clone.processID {
                     HStack(spacing: 3) {
@@ -125,10 +117,9 @@ struct CloneCardView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
-                
+
                 Spacer()
-                
-                // Launch/Stop
+
                 CardActionButton(
                     title: clone.status == .running ? "Dừng" : "Chạy",
                     icon: clone.status == .running ? "stop.fill" : "play.fill",
@@ -141,13 +132,11 @@ struct CloneCardView: View {
                         store.launchClone(clone)
                     }
                 }
-                
-                // Edit
+
                 CardActionButton(title: nil, icon: "pencil", tint: .secondary) {
                     showEditSheet = true
                 }
-                
-                // Delete
+
                 CardActionButton(title: nil, icon: "trash", tint: .red) {
                     showDeleteConfirm = true
                 }
@@ -204,7 +193,7 @@ struct CloneCardView: View {
             Text("Hành động này sẽ xoá toàn bộ dữ liệu của clone này và không thể hoàn tác.")
         }
     }
-    
+
     private func loadAvatar() {
         AvatarExtractor.loadProfile(cloneIndex: clone.cloneIndex) { profile, image in
             if let image = image {
@@ -221,17 +210,16 @@ struct CloneCardView: View {
     }
 }
 
-// MARK: - Card Action Button
 struct CardActionButton: View {
     var title: String?
     let icon: String
     var tint: Color = .accentColor
     var isPrimary: Bool = false
     let action: () -> Void
-    
+
     @State private var isHovered = false
     @State private var isPressed = false
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {

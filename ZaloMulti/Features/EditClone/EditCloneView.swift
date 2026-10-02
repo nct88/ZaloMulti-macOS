@@ -1,32 +1,26 @@
-// EditCloneView.swift
-// ZaloMulti
-//
-// Sheet chỉnh sửa thông tin clone.
-// Rebuild v2.1 — @Environment(\.dismiss) + @EnvironmentObject.
-
 import SwiftUI
 
 struct EditCloneView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var store: CloneStore = CloneStore.shared
-    
+
     let clone: CloneAccount
-    
+
     private enum Field: Hashable {
         case name
         case phone
     }
-    
+
     @FocusState private var focusedField: Field?
     @State private var name: String
     @State private var phoneNumber: String
-    
+
     init(clone: CloneAccount) {
         self.clone = clone
         _name = State(initialValue: clone.name)
         _phoneNumber = State(initialValue: clone.phoneNumber)
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -41,9 +35,9 @@ struct EditCloneView: View {
                 .buttonStyle(.plain)
             }
             .padding()
-            
+
             Divider()
-            
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     GroupBox("Thông tin tài khoản") {
@@ -56,7 +50,7 @@ struct EditCloneView: View {
                                     .textFieldStyle(.roundedBorder)
                                     .focused($focusedField, equals: .name)
                             }
-                            
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Số điện thoại")
                                     .font(.caption)
@@ -68,7 +62,7 @@ struct EditCloneView: View {
                         }
                         .padding(8)
                     }
-                    
+
                     GroupBox("Chi tiết Clone") {
                         VStack(alignment: .leading, spacing: 8) {
                             InfoRow(label: "Bundle ID", value: clone.bundleID)
@@ -84,9 +78,9 @@ struct EditCloneView: View {
                 }
                 .padding()
             }
-            
+
             Divider()
-            
+
             HStack {
                 Spacer()
                 Button("Huỷ") { dismiss() }
@@ -98,7 +92,7 @@ struct EditCloneView: View {
         }
         .frame(width: 480, height: 420)
     }
-    
+
     private func saveChanges() {
         var updated = clone
         updated.name = name
@@ -108,24 +102,23 @@ struct EditCloneView: View {
     }
 }
 
-// MARK: - Info Row
 struct InfoRow: View {
     let label: String
     let value: String
-    
+
     var body: some View {
         HStack(alignment: .top) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 100, alignment: .trailing)
-            
+
             Text(value)
                 .font(.system(.caption, design: .monospaced))
                 .textSelection(.enabled)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            
+
             Spacer()
         }
     }

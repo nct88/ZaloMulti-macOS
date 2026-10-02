@@ -1,38 +1,30 @@
-// UpdateProgressView.swift
-// ZaloMulti
-//
-// Sheet overlay hiển thị tiến trình cập nhật kiểu Telegram.
-// Hiện progress bar, trạng thái, nút hủy/thử lại.
-
 import SwiftUI
 
 struct UpdateProgressView: View {
     @ObservedObject var updater: InAppUpdater
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+
             VStack(spacing: 12) {
-                // Icon
+
                 ZStack {
                     Circle()
                         .fill(iconGradient)
                         .frame(width: 64, height: 64)
-                    
+
                     Image(systemName: iconName)
                         .font(.system(size: 28, weight: .medium))
                         .foregroundStyle(.white)
                         .symbolEffect(.pulse, isActive: isAnimating)
                 }
                 .padding(.top, 8)
-                
-                // Title
+
                 Text(titleText)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(.primary)
-                
-                // Subtitle / Notes
+
                 Text(subtitleText)
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
@@ -41,23 +33,22 @@ struct UpdateProgressView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 20)
-            
+
             Spacer().frame(height: 24)
-            
-            // Progress bar
+
             if isShowingProgress {
                 VStack(spacing: 8) {
                     ProgressView(value: updater.downloadProgress)
                         .progressViewStyle(.linear)
                         .tint(.blue)
-                    
+
                     HStack {
                         Text(updater.state.displayText)
                             .font(.system(size: 12, weight: .medium, design: .monospaced))
                             .foregroundStyle(.secondary)
-                        
+
                         Spacer()
-                        
+
                         if case .downloading = updater.state {
                             Text("\(Int(updater.downloadProgress * 100))%")
                                 .font(.system(size: 12, weight: .bold, design: .monospaced))
@@ -67,8 +58,7 @@ struct UpdateProgressView: View {
                 }
                 .padding(.horizontal, 24)
             }
-            
-            // Status indicator for non-download states
+
             if isShowingSpinner {
                 HStack(spacing: 10) {
                     ProgressView()
@@ -79,26 +69,25 @@ struct UpdateProgressView: View {
                 }
                 .padding(.horizontal, 24)
             }
-            
+
             Spacer().frame(height: 24)
-            
-            // Actions
+
             HStack(spacing: 12) {
                 if case .available = updater.state {
-                    // "Cập nhật ngay" button
+
                     Button("Bỏ qua") {
                         updater.dismiss()
                         dismiss()
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
-                    
+
                     Button("Cập nhật ngay") {
                         updater.performUpdate()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    
+
                 } else if case .downloading = updater.state {
                     Button("Hủy") {
                         updater.cancelUpdate()
@@ -106,7 +95,7 @@ struct UpdateProgressView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
-                    
+
                 } else if case .failed(let msg) = updater.state {
                     Button("Đóng") {
                         updater.dismiss()
@@ -114,13 +103,13 @@ struct UpdateProgressView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
-                    
+
                     Button("Thử lại") {
                         updater.performUpdate()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    
+
                 } else if case .upToDate = updater.state {
                     Button("OK") {
                         updater.dismiss()
@@ -136,9 +125,7 @@ struct UpdateProgressView: View {
         .frame(width: 380, height: 300)
         .background(.ultraThinMaterial)
     }
-    
-    // MARK: - Computed Properties
-    
+
     private var iconName: String {
         switch updater.state {
         case .available: return "arrow.down.circle"
@@ -151,7 +138,7 @@ struct UpdateProgressView: View {
         default: return "arrow.triangle.2.circlepath"
         }
     }
-    
+
     private var iconGradient: LinearGradient {
         switch updater.state {
         case .failed:
@@ -162,7 +149,7 @@ struct UpdateProgressView: View {
             return LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
-    
+
     private var titleText: String {
         switch updater.state {
         case .available(let v, _): return "Có bản cập nhật v\(v)"
@@ -175,7 +162,7 @@ struct UpdateProgressView: View {
         default: return "Kiểm tra cập nhật"
         }
     }
-    
+
     private var subtitleText: String {
         switch updater.state {
         case .available(_, let notes): return notes
@@ -190,19 +177,19 @@ struct UpdateProgressView: View {
         default: return "Đang kết nối máy chủ..."
         }
     }
-    
+
     private var isShowingProgress: Bool {
         if case .downloading = updater.state { return true }
         return false
     }
-    
+
     private var isShowingSpinner: Bool {
         switch updater.state {
         case .checking, .extracting, .installing, .restarting: return true
         default: return false
         }
     }
-    
+
     private var isAnimating: Bool {
         switch updater.state {
         case .downloading, .extracting, .installing, .restarting: return true

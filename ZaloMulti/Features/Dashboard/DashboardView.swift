@@ -1,20 +1,14 @@
-// DashboardView.swift
-// ZaloMulti
-//
-// Grid 2 cột hiển thị các clone cards + nút thêm tài khoản.
-// Rebuild v2.1 — @EnvironmentObject + Button thay vì onTapGesture.
-
 import SwiftUI
 
 struct DashboardView: View {
     @ObservedObject var store: CloneStore = CloneStore.shared
     var onAddClone: () -> Void = { CloneStore.shared.openAddClone(source: "dashboard-default") }
-    
+
     let columns = [
         GridItem(.flexible(), spacing: 12),
         GridItem(.flexible(), spacing: 12)
     ]
-    
+
     var body: some View {
         ScrollView {
             if HostEnvironment.isRunningUnderRosetta {
@@ -33,16 +27,15 @@ struct DashboardView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
             }
-            
-            // Section header
+
             HStack {
                 Text("TÀI KHOẢN CLONE")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .tracking(0.5)
-                
+
                 Spacer()
-                
+
                 Text("\(store.totalCount)/\(CloneStore.maxClones) tài khoản")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(store.canAddMore ? .accentColor : .orange)
@@ -53,12 +46,12 @@ struct DashboardView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            
+
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(store.clones) { clone in
                     CloneCardView(clone: clone, store: store)
                 }
-                
+
                 if store.canAddMore {
                     AddCloneCardView(action: onAddClone)
                 } else {
@@ -72,11 +65,10 @@ struct DashboardView: View {
     }
 }
 
-// MARK: - Add Clone Card (Nút "Thêm tài khoản")
 struct AddCloneCardView: View {
     @State private var isHovered = false
     var action: () -> Void
-    
+
     var body: some View {
         Button(action: {
             DiagnosticLogger.info("UI", "AddCloneCard tapped")
@@ -87,12 +79,12 @@ struct AddCloneCardView: View {
                     Circle()
                         .fill(isHovered ? Color.accentColor : Color(nsColor: .separatorColor).opacity(0.3))
                         .frame(width: 36, height: 36)
-                    
+
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(isHovered ? .white : .secondary)
                 }
-                
+
                 Text("Thêm tài khoản")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(isHovered ? .accentColor : .secondary)
@@ -129,7 +121,6 @@ struct AddCloneCardView: View {
     }
 }
 
-// MARK: - Max Clones Reached (Hiển thị khi đã đạt giới hạn 4 TK)
 struct MaxClonesReachedView: View {
     var body: some View {
         VStack(spacing: 8) {
@@ -137,16 +128,16 @@ struct MaxClonesReachedView: View {
                 Circle()
                     .fill(Color.orange.opacity(0.15))
                     .frame(width: 36, height: 36)
-                
+
                 Image(systemName: "lock.fill")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.orange)
             }
-            
+
             Text("Đã đạt giới hạn")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.secondary)
-            
+
             Text("Tối đa \(CloneStore.maxClones) tài khoản")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
