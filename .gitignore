@@ -39,3 +39,6 @@ release/*.dmg
 dist/
 dist-diag/
 default.profraw
+
+# Server code (deploy riêng, không thuộc app)
+donate-backend/
