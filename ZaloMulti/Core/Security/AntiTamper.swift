@@ -58,6 +58,8 @@ enum AntiTamper {
         for i in 0..<count {
             if let name = _dyld_get_image_name(i) {
                 let path = String(cString: name).lowercased()
+                // Bỏ qua thư viện hệ thống (vd. BiomeFlexibleStorage trên macOS 15 khớp "flex")
+                if path.hasPrefix("/system/") || path.hasPrefix("/usr/lib/") { continue }
                 for lib in suspicious {
                     if path.contains(lib.lowercased()) { return true }
                 }

@@ -43,6 +43,8 @@ final class ProcessManager: ObservableObject {
         try? fm.createDirectory(atPath: "\(clone.dataPath)/Library/Preferences", withIntermediateDirectories: true)
         try? fm.createDirectory(atPath: "\(clone.dataPath)/Documents", withIntermediateDirectories: true)
         
+        ZaloCloneEngine.linkKeychains(dataPath: clone.dataPath)
+        
         // Tạo internal symlink nếu Zalo cần đọc cả 2 path bên trong clone data
         if !fm.fileExists(atPath: "\(cloneRootZaloData)/Partitions") && fm.fileExists(atPath: "\(cloneZaloDataDir)/Partitions") {
             try? fm.createSymbolicLink(atPath: "\(cloneRootZaloData)/Partitions", withDestinationPath: "\(cloneZaloDataDir)/Partitions")
@@ -67,6 +69,7 @@ final class ProcessManager: ObservableObject {
         // Cấu hình môi trường cách ly 100% cho từng clone
         var env = ProcessInfo.processInfo.environment
         env["HOME"] = clone.dataPath
+        env["CFFIXED_USER_HOME"] = clone.dataPath
         env["TMPDIR"] = cloneTmpDir
         env["XDG_CONFIG_HOME"] = cloneAppSupport
         env["XDG_DATA_HOME"] = cloneAppSupport

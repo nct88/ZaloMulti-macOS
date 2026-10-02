@@ -1,10 +1,10 @@
 {
-    "version": "2.1.15",
-    "build": 19,
-    "release_date": "2026-09-09",
-    "release_notes": "Form thêm clone trong cùng cửa sổ. Tạo/xóa hiện ngay trên list. Khởi động không đơ, donate không chờ form.",
-    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.15/ZaloMulti-2.1.15-Universal.dmg",
-    "download_size": 1962624,
+    "version": "2.1.16",
+    "build": 20,
+    "release_date": "2026-10-02",
+    "release_notes": "Sửa lỗi bấm Chạy clone mở Zalo gốc rồi tắt; không còn phải đặt lại keychain mỗi lần mở clone; không tự mở trình duyệt khi khởi động trên macOS 15.",
+    "download_url": "https://github.com/nct88/ZaloMulti-macOS/releases/download/v2.1.16/ZaloMulti-2.1.16-Universal.dmg",
+    "download_size": 1909449,
     "min_os_version": "14.0",
     "mandatory": true
 }

@@ -165,6 +165,19 @@ final class ZaloCloneEngine: ObservableObject {
         for subdir in subdirs {
             try fm.createDirectory(atPath: "\(dataPath)/\(subdir)", withIntermediateDirectories: true)
         }
+        linkKeychains(dataPath: dataPath)
+    }
+
+    /// CFFIXED_USER_HOME làm Security tìm keychain trong home của clone → macOS đòi
+    /// tạo/đặt lại keychain mỗi lần mở. Trỏ Library/Keychains về keychain thật của user.
+    nonisolated static func linkKeychains(dataPath: String) {
+        let fm = FileManager.default
+        let link = "\(dataPath)/Library/Keychains"
+        let target = "\(NSHomeDirectory())/Library/Keychains"
+        if (try? fm.destinationOfSymbolicLink(atPath: link)) == target { return }
+        try? fm.createDirectory(atPath: "\(dataPath)/Library", withIntermediateDirectories: true)
+        try? fm.removeItem(atPath: link)
+        try? fm.createSymbolicLink(atPath: link, withDestinationPath: target)
     }
     
     private nonisolated static func forceRemove(_ path: String) {
@@ -255,6 +268,9 @@ final class ZaloCloneEngine: ObservableObject {
             }
         }
         try setEnv("HOME", dataPath)
+        // Electron lấy appData qua NSHomeDirectory (bỏ qua HOME) → clone dùng chung
+        // SingletonLock với Zalo gốc, mở app gốc rồi tự thoát. CFFIXED_USER_HOME ghi đè được.
+        try setEnv("CFFIXED_USER_HOME", dataPath)
         try setEnv("TMPDIR", "\(dataPath)/tmp")
         _ = try? setEnv("MallocNanoZone", "0")
         DiagnosticLogger.info("CREATE", "LSEnvironment HOME=\(dataPath)")
